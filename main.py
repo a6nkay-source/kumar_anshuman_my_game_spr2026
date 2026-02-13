@@ -39,7 +39,7 @@ class Game:
         # controls whether a round of the game is active
         self.playing = True
 
-        # cooldown timer (5000 ms = 5 seconds)
+        # cooldown timer 5 seconds
         self.game_cooldown = Cooldown(5000)
    
         
@@ -61,7 +61,7 @@ class Game:
         # load assets and map
         self.load_data()
 
-        # sprite groups (collections of game objects)
+        # sprite groups 
         self.all_sprites = pg.sprite.Group()
         self.all_walls = pg.sprite.Group()
         self.all_mobs = pg.sprite.Group()
@@ -77,7 +77,10 @@ class Game:
                 # if tile is "P", create player start position
                 if tile == 'P':
                     self.player = Player(self, col, row)
-
+                if tile == 'M':
+                    Mob(self, col, row ) # Setting the Mob
+                if tile == 'C':
+                    Coin(self, col, row)# Setting coins position
         # start game loop
         self.run()
 
@@ -103,7 +106,7 @@ class Game:
 
 
 
-    # Handle keyboard, mouse, and quit events
+    # Handle events
 
     def events(self):
         for event in pg.event.get():

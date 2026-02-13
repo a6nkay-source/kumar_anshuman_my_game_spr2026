@@ -1,11 +1,14 @@
+import pygame as pg
+# Settings
 WIDTH = 800
 HEIGHT = 600
-TITLE = "MY Cool Game"
-FPS = 60
-TILESIZE = 32
+TITLE = "MY Cool Game" # Title
+FPS = 60 # Frames per second
+TILESIZE = 32 # Avergae Pixel size
 
 # Player Values
 PLAYER_SPEED = 280
+PLAYER_HIT_RECT = pg.Rect(0, 0, TILESIZE, TILESIZE) # Player Hitbox
 
 # color values
 # tuple storing RGB values
