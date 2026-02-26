@@ -1,4 +1,4 @@
-import pygame as pg                     # Import pygame library for graphics, input, sprites, etc.
+import pygame as pg                     # Import pygame library for graphics, input, sprites
 from pygame.sprite import Sprite        # Import Sprite base class to create game objects
 from settings import *                  # Import all constants 
 
@@ -67,7 +67,6 @@ class Player(Sprite):
         # Hit rectangle used for collision 
         self.hit_rect = PLAYER_HIT_RECT 
 
-
     def get_keys(self):
         # Reset velocity every frame before checking input
         self.vel = vec(0,0)
@@ -121,15 +120,11 @@ class Mob(Sprite):
         # Create mob square image
         self.image = pg.Surface((TILESIZE, TILESIZE))
         self.image.fill(RED)  # mob is red
-
         self.rect = self.image.get_rect()
-
         # Velocity direction vector 
         self.vel = vec(1,0)
-
         # Position stored as vector
         self.pos = vec(x,y) * TILESIZE
-
         # Movement speed
         self.speed = 10
 
@@ -162,10 +157,10 @@ class Wall(Sprite):
         Sprite.__init__(self, self.groups)
 
         self.game = game
-
         # Create wall square
-        self.image = pg.Surface((TILESIZE, TILESIZE))
-        self.image.fill(GREEN)  # wall is green
+        #self.image = pg.Surface((TILESIZE, TILESIZE))
+        #self.image.fill(GREEN)  # wall is green
+        self.image = pg.image.load("Wall.png")
 
         self.rect = self.image.get_rect()
 
@@ -193,15 +188,10 @@ class Coin(Sprite):
         # Create coin square
         self.image = pg.Surface((TILESIZE, TILESIZE))
         self.image.fill(YELLOW)  # coin is yellow
-
         self.rect = self.image.get_rect()
-
         # Coins don’t move
         self.vel = vec(0,0)
-
         # Position vector
         self.pos = vec(x,y) * TILESIZE
-
-
     def update(self):
         pass  # coin currently does nothing
