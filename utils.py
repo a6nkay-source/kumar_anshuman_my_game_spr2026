@@ -17,8 +17,10 @@ class Map:
 
 class Spritesheet:
     def __init__(self, filename):
-        self.spritesheet = pg.image.load(filename).convert()
-
+        self.spritesheet = pg.image.load(filename).convert()# Will load image and utalize it
+        
+        # Does something called Blit which creates the image. Load into memory and creates a new image.
+        # Process and return with parameters that are given 
     def get_image(self, x, y, width, height):
         image = pg.Surface((width, height))
         image.blit(self.spritesheet, (0,0), (x,y, width, height))

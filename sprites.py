@@ -1,7 +1,9 @@
 import pygame as pg                     # Import pygame library for graphics, input, sprites
 from pygame.sprite import Sprite        # Import Sprite base class to create game objects
-from settings import *                  # Import all constants 
-
+from settings import * 
+                 # Import all constants 
+from utils import *# Importing Utils
+from os import path
 vec = pg.math.Vector2                   # Shortcut name for pygame’s vector class 
 
 
@@ -48,25 +50,28 @@ class Player(Sprite):
         # Add player to sprite group that contains all sprites
         self.groups = game.all_sprites
         Sprite.__init__(self, self.groups)
-
         self.game = game  # reference to main game object
+        self.spritesheet = Spritesheet(path.join(self.game.img_dir, "sprite_sheet.png"))
+        self.load_images()
 
         # Create player square image
         self.image = pg.Surface((TILESIZE, TILESIZE))
-        self.image.fill(WHITE)  # fill player with white color
+        # self.image.fill(WHITE)  # fill player with white color
 
         # Rectangle used for drawing and positioning
         self.rect = self.image.get_rect()
 
         # Velocity vector 
         self.vel = vec(0,0)
-
         # Position stored as vector for precise movement
         self.pos = vec(x,y) * TILESIZE
-
         # Hit rectangle used for collision 
         self.hit_rect = PLAYER_HIT_RECT 
 
+        self.jumping = False
+        self.walking = False
+        self.last_update = 0
+        self.current_frame = 0
     def get_keys(self):
         # Reset velocity every frame before checking input
         self.vel = vec(0,0)
@@ -90,10 +95,27 @@ class Player(Sprite):
         if self.vel.x != 0 and self.vel.y != 0:
             self.vel *= 0.7071      # normalize diagonal speed
 
+    def load_images(self):
+       
+        self.standing_frames = [self.spritesheet.get_image(0,0,TILESIZE,TILESIZE),
+                                self.spritesheet.get_image(0,TILESIZE,TILESIZE,TILESIZE)]
+        for frame in self.standing_frames:
+            frame.set_colorkey(BLACK)
+
+    def animate(self):
+        now = pg.time.get_ticks() #gets current time
+        if not self.jumping and not self.walking: #only while static, need to update self.walking and self.jumping
+            if now - self.last_update > 350: #cooldown for sprite update, 350 milliseconds per frame
+                self.last_update = now #updates now
+                self.current_frame = (self.current_frame + 1) % len(self.standing_frames) #this line iterates through all frames, and if you are on the last one, it goes back to the beginning
+                bottom = self.rect.bottom
+                self.image = self.standing_frames[self.current_frame] #sets the current image to be that frame
+                self.rect = self.image.get_rect()
+                self.rect.bottom = bottom
 
     def update(self):
         # Called every frame automatically
-
+        self.animate()
         # Get keyboard input and update velocity
         self.get_keys()
 
@@ -160,7 +182,8 @@ class Wall(Sprite):
         # Create wall square
         #self.image = pg.Surface((TILESIZE, TILESIZE))
         #self.image.fill(GREEN)  # wall is green
-        self.image = pg.image.load("Wall.png")
+        
+        self.image = pg.image.load(os.path.join(script_dir, "images", "Wall.png")).convert_alpha()
 
         self.rect = self.image.get_rect()
 

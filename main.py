@@ -63,7 +63,7 @@ class Game:
 
                 # if tile is "P", create player start position
                 if tile == 'P':
-                    self.player = Player(self, col, row)
+                    self.player = Player(self,col, row)
                 if tile == 'M':
                     Mob(self, col, row ) # Setting the Mob
                 if tile == 'C':

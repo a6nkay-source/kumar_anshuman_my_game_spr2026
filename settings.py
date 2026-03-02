@@ -1,10 +1,14 @@
 import pygame as pg
+import os
 # Settings
 WIDTH = 800
 HEIGHT = 600
 TITLE = "MY Cool Game" # Title
 FPS = 60 # Frames per second
 TILESIZE = 32 # Avergae Pixel size
+
+
+script_dir = os.path.dirname(__file__)
 
 # Player Values
 PLAYER_SPEED = 280
