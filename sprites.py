@@ -98,32 +98,43 @@ class Player(Sprite):
     def load_images(self):
        
         self.standing_frames = [self.spritesheet.get_image(0,0,TILESIZE,TILESIZE),
+                                self.spritesheet.get_image(0,TILESIZE,TILESIZE,TILESIZE)]# This is to get the images from the sprite and is doen to place it on the player.
+        self.moving_frames = [self.spritesheet.get_image(TILESIZE*2,0,TILESIZE),
                                 self.spritesheet.get_image(0,TILESIZE,TILESIZE,TILESIZE)]
-        for frame in self.standing_frames:
-            frame.set_colorkey(BLACK)
+        for frame in self.standing_frames: # Load different frames: open sprite sheet to open it in a graphing editor
+            frame.set_colorkey(BLACK)# Color key set for black pixels
 
     def animate(self):
         now = pg.time.get_ticks() #gets current time
-        if not self.jumping and not self.walking: #only while static, need to update self.walking and self.jumping
-            if now - self.last_update > 350: #cooldown for sprite update, 350 milliseconds per frame
+        if not self.jumping and not self.walking: #only while static: this needs to update self.walking and self.jumping
+            if now - self.last_update > 350: #cooldown for sprite update 350 milliseconds per frame
                 self.last_update = now #updates now
                 self.current_frame = (self.current_frame + 1) % len(self.standing_frames) #this line iterates through all frames, and if you are on the last one, it goes back to the beginning
                 bottom = self.rect.bottom
                 self.image = self.standing_frames[self.current_frame] #sets the current image to be that frame
                 self.rect = self.image.get_rect()
                 self.rect.bottom = bottom
+        elif self.jumping: 
+            if now - self.last_update > 350:  # faster animation for jump
+                self.last_update = now #updates now
+                self.current_frame = (self.current_frame + 1) % len(self.jumping_frames) #this line iterates through all frames, and if you are on the last one, it goes back to the beginning
+                bottom = self.rect.bottom
+
+                bottom = self.rect.bottom
+                self.image = self.jumping_frames[self.current_frame]# sets the current image to be that frame
+                self.rect = self.image.get_rect()
+                self.rect.bottom = bottom
+
 
     def update(self):
-        # Called every frame automatically
-        self.animate()
+        self.animate() # Animates the sprite and updates it to the player so the player looks animated.
         # Get keyboard input and update velocity
         self.get_keys()
-
         # Update rectangle center to match position
         self.rect.center = self.pos
 
         # Move player based on velocity and delta time
-        # dt makes movement framerate independent
+        # dt (delta time) makes movement framerate independent
         self.pos += self.vel * self.game.dt
         self.hit_rect.centerx = self.pos.x
         collide_with_walls(self, self.game.all_walls, 'x') # Calls function to check horizontal collisions
