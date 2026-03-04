@@ -51,13 +51,14 @@ class Player(Sprite):
         self.groups = game.all_sprites
         Sprite.__init__(self, self.groups)
         self.game = game  # reference to main game object
-        self.spritesheet = Spritesheet(path.join(self.game.img_dir, "sprite_sheet.png"))
-        self.load_images()
+        self.spritesheet = Spritesheet(path.join(self.game.img_dir, "sprite_sheet.png")) # Sets up spritesheet and getting image from sprite sheet
+        self.load_images()# loads the images
 
         # Create player square image
         self.image = pg.Surface((TILESIZE, TILESIZE))
         # self.image.fill(WHITE)  # fill player with white color
-
+        self.image = self.spritesheet.get_image(0,0,TILESIZE,TILESIZE)
+        self.image.set_colorkey(BLACK)
         # Rectangle used for drawing and positioning
         self.rect = self.image.get_rect()
 
@@ -67,7 +68,7 @@ class Player(Sprite):
         self.pos = vec(x,y) * TILESIZE
         # Hit rectangle used for collision 
         self.hit_rect = PLAYER_HIT_RECT 
-
+        # 4 properties are important (logic check example)
         self.jumping = False
         self.walking = False
         self.last_update = 0
@@ -75,10 +76,11 @@ class Player(Sprite):
     def get_keys(self):
         # Reset velocity every frame before checking input
         self.vel = vec(0,0)
-
-        # Get all keyboard key states
         keys = pg.key.get_pressed()
-
+        if keys[pg.K_f]:
+            print('fired projectile')
+            p = Projectile(self.game, self.pos.x, self.pos.y) 
+        # Get all keyboard key states and check for movement keys
         # Horizontal movement
         if keys[pg.K_a]:            # if A pressed: move left
             self.vel.x = -PLAYER_SPEED
@@ -96,13 +98,15 @@ class Player(Sprite):
             self.vel *= 0.7071      # normalize diagonal speed
 
     def load_images(self):
-       
+       # Changed my sprite_sheet (llama:6 total image frames): Used Piskel library
         self.standing_frames = [self.spritesheet.get_image(0,0,TILESIZE,TILESIZE),
-                                self.spritesheet.get_image(0,TILESIZE,TILESIZE,TILESIZE)]# This is to get the images from the sprite and is doen to place it on the player.
-        self.moving_frames = [self.spritesheet.get_image(TILESIZE*2,0,TILESIZE),
-                                self.spritesheet.get_image(0,TILESIZE,TILESIZE,TILESIZE)]
+                                self.spritesheet.get_image(0,TILESIZE,TILESIZE,TILESIZE)]# This is to get the images from the sprite and is done to place it on the player.
+        self.moving_frames = [self.spritesheet.get_image(TILESIZE*2,0,TILESIZE, TILESIZE),
+                                self.spritesheet.get_image(TILESIZE*3, 0,TILESIZE,TILESIZE)]# helps sets
         for frame in self.standing_frames: # Load different frames: open sprite sheet to open it in a graphing editor
             frame.set_colorkey(BLACK)# Color key set for black pixels
+        for frame in self.moving_frames:
+            frame.set_colorkey(BLACK)
 
     def animate(self):
         now = pg.time.get_ticks() #gets current time
@@ -124,12 +128,17 @@ class Player(Sprite):
                 self.image = self.jumping_frames[self.current_frame]# sets the current image to be that frame
                 self.rect = self.image.get_rect()
                 self.rect.bottom = bottom
-
+    def state_check(self):
+        if self.vel != vec(0,0):
+            self.moving = True
+        else: 
+            self.moving = False
 
     def update(self):
         self.animate() # Animates the sprite and updates it to the player so the player looks animated.
         # Get keyboard input and update velocity
         self.get_keys()
+        self.state_check() # making sure that animation updating
         # Update rectangle center to match position
         self.rect.center = self.pos
 
@@ -211,6 +220,26 @@ class Wall(Sprite):
     def update(self):
         pass  # walls don’t need updating
 
+
+
+    class Projectile(Sprite):
+        def __init__(self, game, x, y):
+            self.groups = game.all_sprites, game.all_projectiles #group
+            Sprite.__init__(self, self.groups)
+            self.game = game
+            self.image = pg.Surface((TILESIZE, TILESIZE))
+            self.image.fill(RED) #only difference from player, the color
+            self.rect = self.image.get_rect()
+            self.vel = vec(1,0)
+            self.pos = vec(x,y) * TILESIZE
+            
+ 
+        def update(self):
+            hits = pg.sprite.spritecollide(self, self.game.all_walls, False) # check for collision with walls
+            print(hits)
+            self.pos += self.vel * self.speed # move projectile
+            self.rect.center = self.pos # update rectangle position
+
 class Coin(Sprite):
     def __init__(self, game, x, y):
         # Add coin to all sprites group
@@ -229,3 +258,5 @@ class Coin(Sprite):
         self.pos = vec(x,y) * TILESIZE
     def update(self):
         pass  # coin currently does nothing
+
+    

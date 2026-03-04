@@ -43,6 +43,8 @@ class Game:
         self.map = Map(path.join(self.game_dir, 'level1.txt'))
 
         print('data is loaded')
+        self.camera = Camera(self.map.width, self.map.height)
+        print('data is loaded')
     
     # Start a new game round
 
@@ -111,16 +113,21 @@ class Game:
         pass
     # Update all game objects
     def update(self):
-        # call update() on every sprite
-        self.all_sprites.update()
+        self.all_sprites.update() # Updates all sprites
+        # keep camera centered on the player once they exist
+        if hasattr(self, 'player'):
+            self.camera.update(self.player)
 
     
     # Draw everything to screen
     def draw(self):
         # fill background color
         self.screen.fill(BLUE)
+        # draw all sprites with camera offset
+        for sprite in self.all_sprites:
+            self.screen.blit(sprite.image, self.camera.apply(sprite))
 
-        # draw debug text
+        # draw debug text (text is always screen‑space so drawn after sprites)
         self.draw_text("Hello World", 24, WHITE, WIDTH/2, TILESIZE)
         # show delta time
         self.draw_text(str(self.dt), 24, WHITE, WIDTH/2, HEIGHT/4)
@@ -128,9 +135,8 @@ class Game:
         self.draw_text(str(self.game_cooldown.ready()), 24, WHITE, WIDTH/2, HEIGHT/3)
         # show player position vector
         self.draw_text(str(self.player.pos), 24, WHITE, WIDTH/2, HEIGHT-TILESIZE*3)
-        # draw all sprites to screen
-        self.all_sprites.draw(self.screen)
 
+       
         # update display
         pg.display.flip()
 
