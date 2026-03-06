@@ -123,9 +123,14 @@ class Game:
     def draw(self):
         # fill background color
         self.screen.fill(BLUE)
+        
         # draw all sprites with camera offset
         for sprite in self.all_sprites:
             self.screen.blit(sprite.image, self.camera.apply(sprite))
+
+        # apply circular mask to clip sprites to circle
+        if hasattr(self, 'player'):
+            self.camera.apply_circular_mask(self.screen, self.player)
 
         # draw debug text (text is always screen‑space so drawn after sprites)
         self.draw_text("Hello World", 24, WHITE, WIDTH/2, TILESIZE)
@@ -135,7 +140,6 @@ class Game:
         self.draw_text(str(self.game_cooldown.ready()), 24, WHITE, WIDTH/2, HEIGHT/3)
         # show player position vector
         self.draw_text(str(self.player.pos), 24, WHITE, WIDTH/2, HEIGHT-TILESIZE*3)
-
        
         # update display
         pg.display.flip()

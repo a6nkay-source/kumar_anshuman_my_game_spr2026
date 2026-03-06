@@ -48,6 +48,7 @@ def collide_with_walls(sprite, group, dir):
 class Player(Sprite):
     def __init__(self, game, x, y):
         # Add player to sprite group that contains all sprites
+        
         self.groups = game.all_sprites
         Sprite.__init__(self, self.groups)
         self.game = game  # reference to main game object

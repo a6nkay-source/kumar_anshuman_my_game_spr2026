@@ -58,6 +58,17 @@ class Camera: # Camera Class so the camera can follow the player
  
     def apply_rect(self, rect): # Applies camera offest to rec
         return rect.move(self.camera.topleft)
+    def draw_world(self, surface, sprites):
+        for sprite in sprites:
+            surface.blit(sprite.image, self.apply(sprite))
+ 
+    def apply_circular_mask(self, surface, target, radius=CAMERA_RADIUS):
+        mask = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+        mask.fill((0, 0, 0, 255))
+        target_screen_center = self.apply(target).center
+        pg.draw.circle(mask, (0, 0, 0, 0), target_screen_center, radius)
+        surface.blit(mask, (0, 0))
+ 
  
     def update(self, target): # Makes camera follow the player
  

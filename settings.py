@@ -5,6 +5,7 @@ WIDTH = 800
 HEIGHT = 600
 TITLE = "MY Cool Game" # Title
 FPS = 60 # Frames per second
+CAMERA_RADIUS = 200 # Radius of the camera's circular mask
 TILESIZE = 32 # Avergae Pixel size
 
 
