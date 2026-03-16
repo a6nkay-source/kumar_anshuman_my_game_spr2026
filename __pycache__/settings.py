@@ -1,0 +1,27 @@
+import pygame as pg
+
+#Game Constants
+WIDTH = 800
+HEIGHT = 600
+FPS = 60
+TILESIZE = 32
+
+#Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+CYAN = (0, 255, 255)
+MAGENTA = (255, 0, 255)
+
+# Player Settings
+PLAYER_SPEED = 200
+PLAYER_HEALTH = 100
+DASH_SPEED = 600
+DASH_DURATION = 150 #ms
+DASH_COOLDOWN = 1000 #ms
+
+#Enemy Settings
+ENEMY_SPEED = 120
