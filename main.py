@@ -1,3 +1,4 @@
+# Note: Move this file from __pycache__ to the project root directory (c:\Users\A.Kumar29\OneDrive - Bellarmine College Preparatory\Documents\Vs Code\kumar_anshuman_my_game_spr2026\main.py) before running, to avoid import errors for settings, sprites, and map.
 import pygame as pg
 import sys
 from settings import *
@@ -10,17 +11,24 @@ class Game:
         self.screen = pg.display.set_mode((WIDTH, HEIGHT))
         pg.display.set_caption("Neon Escape") # Set window title
         self.clock = pg.time.Clock()
-        self.load_data()
+        self.level = 1  # Added level counter for progression
+        self.score = 0  # Moved score to __init__ to make it cumulative across levels
 
     def load_data(self):
-        self.map = Map('map/level1.txt')
+        #print('KK: pwd=', pg.os.getcwd()) # Debug: Print current working directory
+        try:
+            self.map = Map(f'level{self.level}.txt')  # Changed to load level based on self.level
+        except FileNotFoundError:
+            print("Game Complete! All levels finished.")
+            pg.quit()
+            sys.exit()
 
     def new(self):
+        self.load_data()  # Moved here to reload map for each level
         # Initialize all variables and do all the setup for a new game
         self.all_sprites = pg.sprite.Group()
         self.walls = pg.sprite.Group()
         self.enemies = pg.sprite.Group()
-        self.core = pg.sprite.Group()
         self.cores = pg.sprite.Group()
         self.portals = pg.sprite.Group()
 
@@ -35,7 +43,7 @@ class Game:
                 if tile == 'E': self.portal = Portal(self, col, row)
                 
         self.camera = Camera(self.map.width, self.map.height) # Initialize camera with map dimensions
-        self.score = 0 # Start score at 0
+        # self.score = 0  # Removed, now cumulative
         self.run() # Start the game loop 
 
     def run(self):
@@ -65,20 +73,24 @@ class Game:
         if pg.sprite.spritecollide(self.player, self.enemies, False):
             self.player.health -= 1 # Reduce player health on collision
             if self.player.health <= 0: # Check for game over
+                self.level = 1  # Reset to level 1 on death
+                self.score = 0  # Reset score on death
                 self.playing = False #Restart Level
 
         # Exit Portal
         if len(self.cores) == 0: # Check if all cores are collected
             if pg.sprite.spritecollide(self.player, self.portals, False):
-                print("Level Complete!") # Print score on level completion
-                self.playing = False # Proceed to next level or end game
+                print(f"Level {self.level} Complete!") # Print level completion
+                self.level += 1  # Advance to next level
+                self.playing = False # Proceed to next level
     def draw(self):
-        self.screen.fill(BGCOLOR) # Clear screen with black background
+        self.screen.fill((0, 0, 0))  # Changed to black for a common color
         for sprite in self.all_sprites:
             self.screen.blit(sprite.image, self.camera.apply(sprite)) # Draw sprites with camera offset
         
         # Draw HUD
         self.draw_text(f'Score: {self.score}', 22, WHITE, 10, 10) # Display score
+        self.draw_text(f'Level: {self.level}', 22, WHITE, 10, 40)  # Added level display
         pg.display.flip() # Update the display
 
     def draw_text(self, text, size, color, x, y):
