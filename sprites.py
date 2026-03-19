@@ -1,85 +1,101 @@
+from random import *
 import pygame as pg
 from settings import *
 
-# Add missing constants to fix NameError
-DASH_COOLDOWN = 1000  # 1 second cooldown for dash
-DASH_DURATION = 200   # 0.2 seconds duration for dash
+# Make this to show borders bbetter for a better User Interface
+# The user will have a better experience with this 
+def draw_pixel_rect(surface, color, rect, border_size=2):
+
+    pg.draw.rect(surface, color, rect)
+    inner_rect = rect.inflate(-border_size*2, -border_size*2) # Create smaller rect for inner border
+    pg.draw.rect(surface, (0, 0, 0), inner_rect, border_size) # Add inner black border for pixel effect
 
 class Player(pg.sprite.Sprite):
     def __init__(self, game, x, y):
         self.groups = game.all_sprites
         pg.sprite.Sprite.__init__(self, self.groups)
         self.game = game
-        self.image = pg.Surface((TILESIZE - 4, TILESIZE - 4))
-        self.image.fill(CYAN)
+        self.image = pg.Surface((28, 28)) # Slightly smaller than tile for better collision
+        self.image.set_colorkey((0,0,0))
+        draw_pixel_rect(self.image, CYAN, self.image.get_rect()) # Draw player with pixelated style
         self.rect = self.image.get_rect()
-        self.x, self.y = x * TILESIZE, y * TILESIZE
-        self.pos = pg.math.Vector2(self.x, self.y)  # Added pos attribute
-        self.vx, self.vy = 0, 0
+        self.pos = pg.math.Vector2(x, y) * TILESIZE
+        self.vel = pg.math.Vector2(0, 0)
+        self.last_dash = -DASH_COOLDOWN
         self.health = PLAYER_HEALTH
-        self.last_dash = 0
-        self.is_dashing = False
 
-    def get_keys(self):
-        self.vx, self.vy = 0, 0
+    def update(self):
+        self.vel = pg.math.Vector2(0, 0)
         keys = pg.key.get_pressed()
-        if keys[pg.K_a]: self.vx = -PLAYER_SPEED
-        if keys[pg.K_d]: self.vx = PLAYER_SPEED
-        if keys[pg.K_w]: self.vy = -PLAYER_SPEED
-        if keys[pg.K_s]: self.vy = PLAYER_SPEED
-        
-        # Dash logic
+        if keys[pg.K_a]: self.vel.x = -PLAYER_SPEED # Moves the Left
+        if keys[pg.K_d]: self.vel.x = PLAYER_SPEED # Moves to the Right
+        if keys[pg.K_w]: self.vel.y = -PLAYER_SPEED # Moves Upward
+        if keys[pg.K_s]: self.vel.y = PLAYER_SPEED # Moves Downward
+
         now = pg.time.get_ticks()
+        is_dashing = keys[pg.K_SPACE] and (now - self.last_dash < DASH_DURATION)
         if keys[pg.K_SPACE] and now - self.last_dash > DASH_COOLDOWN:
-            self.is_dashing = True
             self.last_dash = now
+
+        speed = PLAYER_SPEED * (DASH_SPEED_MULT if is_dashing else 1)
+
+        if self.vel.length() > 0:
+            self.vel = self.vel.normalize() * speed
+
+        self.pos.x += self.vel.x * self.game.dt # Move the player based on velocity and delta time
+        self.rect.x = self.pos.x # Update rect position for collision detection
+        self.collide_with_walls('x')
+        self.pos.y += self.vel.y * self.game.dt
+        self.rect.y = self.pos.y
+        self.collide_with_walls('y')
+
+        if self.vel.length() > 0 and is_dashing:
+            # Create dash particles
+            if random() > 0.5 or is_dashing: # Random chance to create a particle for a more dynamic effect
+                Particle(self.game, self.rect.centerx, self.rect.centery, CYAN)
+        if is_dashing:
+            # Create a trail of particles while dashing
+            for _ in range(3):
+                Particle(self.game, self.rect.centerx, self.rect.centery, CYAN)
+
+        # Handle invincibility flashing
+        if self.game.invincibility_timer > 0:
+            # Flash the player by toggling visibility
+            flash_rate = 100  # Flash every 100ms
+            if (self.game.invincibility_timer // flash_rate) % 2 == 0:
+                self.image.set_alpha(128)  # Semi-transparent
+            else:
+                self.image.set_alpha(255)  # Fully visible
+        else:
+            self.image.set_alpha(255)  # Ensure fully visible when not invincible
+
 
     def collide_with_walls(self, dir):
         hits = pg.sprite.spritecollide(self, self.game.walls, False)
-        if dir == 'x':
-            if hits:
-                if self.vx > 0: self.x = hits[0].rect.left - self.rect.width
-                if self.vx < 0: self.x = hits[0].rect.right
-                self.vx = 0
-                self.rect.x = self.x
-        if dir == 'y':
-            if hits:
-                if self.vy > 0: self.y = hits[0].rect.top - self.rect.height
-                if self.vy < 0: self.y = hits[0].rect.bottom
-                self.vy = 0
-                self.rect.y = self.y
-
-    def update(self):
-        self.get_keys()
-        speed_mult = 3 if self.is_dashing and pg.time.get_ticks() - self.last_dash < DASH_DURATION else 1
-        if speed_mult == 1: self.is_dashing = False
-
-        self.x += self.vx * self.game.dt * speed_mult
-        self.rect.x = self.x
-        self.collide_with_walls('x')
-        
-        self.y += self.vy * self.game.dt * speed_mult
-        self.rect.y = self.y
-        self.collide_with_walls('y')
-        
-        self.pos = pg.math.Vector2(self.x, self.y)  # Update pos after movement
+        if hits:
+            if dir == 'x': # This is for horizontal collision
+                if self.vel.x > 0: self.pos.x = hits[0].rect.left - self.rect.width
+                if self.vel.x < 0: self.pos.x = hits[0].rect.right # Adjust position to prevent moving into wall
+                self.rect.x = self.pos.x
+            if dir == 'y': # This is for vertical collision
+                if self.vel.y > 0: self.pos.y = hits[0].rect.top - self.rect.height
+                if self.vel.y < 0: self.pos.y = hits[0].rect.bottom # Adjust position to prevent moving into wall
+                self.rect.y = self.pos.y
 
 class Enemy(pg.sprite.Sprite):
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.enemies
         pg.sprite.Sprite.__init__(self, self.groups)
         self.game = game
-        self.image = pg.Surface((TILESIZE - 4, TILESIZE - 4))
-        self.image.fill(RED)
+        self.image = pg.Surface((26, 26))
+        draw_pixel_rect(self.image, RED, self.image.get_rect())
         self.rect = self.image.get_rect()
         self.pos = pg.math.Vector2(x, y) * TILESIZE
 
     def update(self):
-        # Simple tracking AI
         dir = (self.game.player.pos - self.pos)
-        if dir.length_squared() > 0:
-            dir = dir.normalize()
-            self.pos += dir * ENEMY_SPEED * self.game.dt
+        if dir.length() > 0:
+            self.pos += dir.normalize() * ENEMY_SPEED * self.game.dt
         self.rect.topleft = self.pos
 
 class Wall(pg.sprite.Sprite):
@@ -87,7 +103,9 @@ class Wall(pg.sprite.Sprite):
         self.groups = game.all_sprites, game.walls
         pg.sprite.Sprite.__init__(self, self.groups)
         self.image = pg.Surface((TILESIZE, TILESIZE))
-        self.image.fill(WHITE)
+        # Beveled pixel look
+        self.image.fill(DARK_GRAY)
+        pg.draw.rect(self.image, WHITE, [0, 0, TILESIZE, TILESIZE], 1)
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = x * TILESIZE, y * TILESIZE
 
@@ -95,16 +113,42 @@ class EnergyCore(pg.sprite.Sprite):
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.cores
         pg.sprite.Sprite.__init__(self, self.groups)
-        self.image = pg.Surface((TILESIZE//2, TILESIZE//2))
-        self.image.fill(YELLOW)
+        self.image = pg.Surface((16, 16))
+        draw_pixel_rect(self.image, YELLOW, self.image.get_rect())
         self.rect = self.image.get_rect()
-        self.rect.center = (x * TILESIZE + TILESIZE//2, y * TILESIZE + TILESIZE//2)
+        self.rect.center = (x * TILESIZE + 16, y * TILESIZE + 16)
 
 class Portal(pg.sprite.Sprite):
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.portals
         pg.sprite.Sprite.__init__(self, self.groups)
         self.image = pg.Surface((TILESIZE, TILESIZE))
-        self.image.fill(MAGENTA)
+        self.image.fill(BGCOLOR) # Portal background
+        pg.draw.rect(self.image, MAGENTA, [4, 4, 24, 24], 2) # Portal with a magenta border
         self.rect = self.image.get_rect()
-        self.rect.x, self.rect.y = x * TILESIZE, y * TILESIZE
+        self.rect.x, self.rect.y = x * TILESIZE, y * TILESIZE # Position portal based on tile coordinates
+
+# Want to add this for particle affects when colliding with enemies or getting cores
+class Particle(pg.sprite.Sprite):
+    def __init__(self, game, x, y, color):
+        self.groups = game.all_sprites
+        pg.sprite.Sprite.__init__(self, self.groups)
+        self.game = game
+        size = randint(2, 5) # Random size for particles for a nice look
+        self.image = pg.Surface((size, size)) # Create a small surface 
+        self.image.fill(color) # Particles will be a specific color. 
+        self.rect = self.image.get_rect() # Rect: Used as the position is needed to be found.
+        self.pos = pg.math.Vector2(x, y) 
+
+        # Random burst direction
+        self.vel = pg.math.Vector2(uniform(-1, 1), uniform(-1, 1)) * 100
+        self.life = 255 # Opacity/Life timer
+
+    def update(self):
+        self.life -= 15 # This will make the particles fade over time
+        if self.life <= 0: # Remove the particle when it goes away.
+            self.kill()
+        else:
+            self.pos += self.vel * self.game.dt
+            self.rect.center = self.pos
+            self.image.set_alpha(self.life)
