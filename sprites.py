@@ -123,8 +123,8 @@ class Portal(pg.sprite.Sprite):
         self.groups = game.all_sprites, game.portals
         pg.sprite.Sprite.__init__(self, self.groups)
         self.image = pg.Surface((TILESIZE, TILESIZE))
-        self.image.fill(BGCOLOR) # Portal background
-        pg.draw.rect(self.image, MAGENTA, [4, 4, 24, 24], 2) # Portal with a magenta border
+        self.image.fill(MAGENTA) # Portal background
+        pg.draw.rect(self.image, BLACK, [4, 4, 24, 24], 2) # Portal with a black border
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = x * TILESIZE, y * TILESIZE # Position portal based on tile coordinates
 
@@ -134,7 +134,7 @@ class Particle(pg.sprite.Sprite):
         self.groups = game.all_sprites
         pg.sprite.Sprite.__init__(self, self.groups)
         self.game = game
-        size = randint(2, 5) # Random size for particles for a nice look
+        size = randint(5, 25) # Random size for particles for a nice look
         self.image = pg.Surface((size, size)) # Create a small surface 
         self.image.fill(color) # Particles will be a specific color. 
         self.rect = self.image.get_rect() # Rect: Used as the position is needed to be found.
