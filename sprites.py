@@ -19,7 +19,9 @@ class Player(pg.sprite.Sprite):
         self.image.set_colorkey((0,0,0))
         draw_pixel_rect(self.image, CYAN, self.image.get_rect()) # Draw player with pixelated style
         self.rect = self.image.get_rect()
-        self.pos = pg.math.Vector2(x, y) * TILESIZE
+        # Center the player on the tile
+        self.pos = pg.math.Vector2(x * TILESIZE + TILESIZE // 2, y * TILESIZE + TILESIZE // 2)
+        self.rect.center = self.pos
         self.vel = pg.math.Vector2(0, 0)
         self.last_dash = -DASH_COOLDOWN
         self.health = PLAYER_HEALTH
@@ -58,17 +60,6 @@ class Player(pg.sprite.Sprite):
             for _ in range(3):
                 Particle(self.game, self.rect.centerx, self.rect.centery, CYAN)
 
-        # Handle invincibility flashing
-        if self.game.invincibility_timer > 0:
-            # Flash the player by toggling visibility
-            flash_rate = 100  # Flash every 100ms
-            if (self.game.invincibility_timer // flash_rate) % 2 == 0:
-                self.image.set_alpha(128)  # Semi-transparent
-            else:
-                self.image.set_alpha(255)  # Fully visible
-        else:
-            self.image.set_alpha(255)  # Ensure fully visible when not invincible
-
 
     def collide_with_walls(self, dir):
         hits = pg.sprite.spritecollide(self, self.game.walls, False)
@@ -90,13 +81,40 @@ class Enemy(pg.sprite.Sprite):
         self.image = pg.Surface((26, 26))
         draw_pixel_rect(self.image, RED, self.image.get_rect())
         self.rect = self.image.get_rect()
-        self.pos = pg.math.Vector2(x, y) * TILESIZE
+        # Center the enemy on the tile
+        self.pos = pg.math.Vector2(x * TILESIZE + TILESIZE // 2, y * TILESIZE + TILESIZE // 2)
+        self.rect.center = self.pos
+        self.vel = pg.math.Vector2(0, 0)
+        self.speed = ENEMY_SPEED  # Default speed, modified by difficulty
 
     def update(self):
         dir = (self.game.player.pos - self.pos)
         if dir.length() > 0:
-            self.pos += dir.normalize() * ENEMY_SPEED * self.game.dt
-        self.rect.topleft = self.pos
+            self.vel = dir.normalize() * self.speed
+        else:
+            self.vel = pg.math.Vector2(0, 0)
+        
+        # Move in x direction and check for wall collisions
+        self.pos.x += self.vel.x * self.game.dt
+        self.rect.x = self.pos.x
+        self.collide_with_walls('x')
+        
+        # Move in y direction and check for wall collisions
+        self.pos.y += self.vel.y * self.game.dt
+        self.rect.y = self.pos.y
+        self.collide_with_walls('y')
+
+    def collide_with_walls(self, dir):
+        hits = pg.sprite.spritecollide(self, self.game.walls, False)
+        if hits:
+            if dir == 'x':  # Horizontal collision
+                if self.vel.x > 0: self.pos.x = hits[0].rect.left - self.rect.width
+                if self.vel.x < 0: self.pos.x = hits[0].rect.right
+                self.rect.x = self.pos.x
+            if dir == 'y':  # Vertical collision
+                if self.vel.y > 0: self.pos.y = hits[0].rect.top - self.rect.height
+                if self.vel.y < 0: self.pos.y = hits[0].rect.bottom
+                self.rect.y = self.pos.y
 
 class Wall(pg.sprite.Sprite):
     def __init__(self, game, x, y):

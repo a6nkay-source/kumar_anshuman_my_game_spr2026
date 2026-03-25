@@ -1,7 +1,7 @@
 # Need to add a home page to pick different difficulties and levels.
 import pygame as pg # Import pygame for game development
 import sys # Import sys for exiting the game
-import random # Import random for screen shake
+import random # Import random for screen shakes
 from settings import * # Import all constants from settings
 from sprites import * # Import all sprite classes
 from map import Map, Camera # Import Map and Camera classes
@@ -13,9 +13,8 @@ class Game:
         self.clock = pg.time.Clock() # Clock to manage frame rate
         self.level_index = 0
         self.difficulty = "NORMAL" # Default difficulty
-        self.enemy_mult = 1.0 # Multiplier for enemy speed
+        self.enemy_mult = 1.0 # Multiplier for enemy speed 
         self.collision_timer = 0  # Timer for collision particle effect
-        self.invincibility_timer = 0  # Timer for invincibility after respawn
         self.screen_shake = 0 # Timer for screen shake effect
         self.show_home_screen() # Show the selection menu before starting
 # This home screen was a reference from the Kids Can Code tutorial on making a platformer, but I heavily modified it to fit the theme of Neon Escape.
@@ -82,7 +81,6 @@ class Game:
         self.cores = pg.sprite.Group() # Group to hold energy core sprites for collection
         self.portals = pg.sprite.Group() # Group to hold portal sprites for level exit
         self.collision_timer = 0  # Reset collision timer
-        self.invincibility_timer = 1000  # 1 second of invincibility after respawn
         
         self.map = Map(MAPS[self.level_index])
         for row, tiles in enumerate(self.map.data):
@@ -106,15 +104,12 @@ class Game:
             self.collision_timer -= self.dt * 1000  # Decrease timer
             if self.collision_timer <= 0:
                 self.load_level()  # Reset level after particle effect
-                
-        if self.invincibility_timer > 0:
-            self.invincibility_timer -= self.dt * 1000  # Decrease invincibility timer
         
         # Collisions
         if pg.sprite.spritecollide(self.player, self.cores, True): # Collect core and remove it from the game
             pass 
             
-        if pg.sprite.spritecollide(self.player, self.enemies, False) and self.collision_timer <= 0 and self.invincibility_timer <= 0: # If player hits an enemy and not in collision 
+        if pg.sprite.spritecollide(self.player, self.enemies, False) and self.collision_timer <= 0: # If player hits an enemy and not in collision 
             # Create collision particles
             for _ in range(10):  # Create multiple particles for collision effect
                 Particle(self, self.player.rect.centerx, self.player.rect.centery, RED)
