@@ -22,11 +22,11 @@ BLACK = (0, 0, 0)
 MAPS = ['level1.txt', 'level2.txt'] # Need to make more maps
 
 # Player Settings
-PLAYER_SPEED = 250
+PLAYER_SPEED = 200
 PLAYER_HEALTH = 100
 DASH_SPEED_MULT = 3
 DASH_DURATION = 150
 DASH_COOLDOWN = 800
 
 # Enemy Settings
-ENEMY_SPEED = 140
+ENEMY_SPEED = 250

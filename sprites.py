@@ -1,6 +1,7 @@
 from random import *
 import pygame as pg
 from settings import *
+from utils import astar_pathfind # This is the A* pathfinding function 
 
 # Make this to show borders bbetter for a better User Interface
 # The user will have a better experience with this 
@@ -15,7 +16,7 @@ class Player(pg.sprite.Sprite):
         self.groups = game.all_sprites
         pg.sprite.Sprite.__init__(self, self.groups)
         self.game = game
-        self.image = pg.Surface((28, 28)) # Slightly smaller than tile for better collision
+        self.image = pg.Surface((24, 24))
         self.image.set_colorkey((0,0,0))
         draw_pixel_rect(self.image, CYAN, self.image.get_rect()) # Draw player with pixelated style
         self.rect = self.image.get_rect()
@@ -78,7 +79,7 @@ class Enemy(pg.sprite.Sprite):
         self.groups = game.all_sprites, game.enemies
         pg.sprite.Sprite.__init__(self, self.groups)
         self.game = game
-        self.image = pg.Surface((26, 26))
+        self.image = pg.Surface((24, 24))
         draw_pixel_rect(self.image, RED, self.image.get_rect())
         self.rect = self.image.get_rect()
         # Center the enemy on the tile
@@ -86,13 +87,58 @@ class Enemy(pg.sprite.Sprite):
         self.rect.center = self.pos
         self.vel = pg.math.Vector2(0, 0)
         self.speed = ENEMY_SPEED  # Default speed, modified by difficulty
+        
+        # A* Pathfinding variables
+        self.path = []  # Current path from A* algorithm
+        self.path_index = 0  # Current waypoint in path
+        self.path_recalc_timer = 0  # Timer for path recalculation
+        self.path_recalc_interval = 30  # Recalculate path every 30 frames 
 
     def update(self):
-        dir = (self.game.player.pos - self.pos)
-        if dir.length() > 0:
-            self.vel = dir.normalize() * self.speed
+        # Recalculate path periodically to account for player movement
+        self.path_recalc_timer += 1
+        if self.path_recalc_timer >= self.path_recalc_interval:
+            self.path_recalc_timer = 0
+            # Recalculate path to player using A* algorithm  
+            self.path = astar_pathfind(self.pos, self.game.player.pos, self.game.map.data)
+            self.path_index = 0
+        
+        # Follow the calculated path
+        if self.path and self.path_index < len(self.path):
+            waypoint = pg.math.Vector2(self.path[self.path_index])
+            dir_to_waypoint = waypoint - self.pos
+            
+            # If close enough to waypoint, move to next one
+            if dir_to_waypoint.length() < self.speed * self.game.dt + 5:
+                self.path_index += 1
+                if self.path_index >= len(self.path):
+                    # Reached end of path, start moving toward player directly
+                    dir_to_player = self.game.player.pos - self.pos
+                    if dir_to_player.length() > 0:
+                        self.vel = dir_to_player.normalize() * self.speed
+                    else:
+                        self.vel = pg.math.Vector2(0, 0)
+                else:
+                    # Move toward next waypoint
+                    waypoint = pg.math.Vector2(self.path[self.path_index])
+                    dir_to_waypoint = waypoint - self.pos
+                    if dir_to_waypoint.length() > 0:
+                        self.vel = dir_to_waypoint.normalize() * self.speed
+                    else:
+                        self.vel = pg.math.Vector2(0, 0)
+            else:
+                # Move toward current waypoint
+                if dir_to_waypoint.length() > 0:
+                    self.vel = dir_to_waypoint.normalize() * self.speed
+                else:
+                    self.vel = pg.math.Vector2(0, 0)
         else:
-            self.vel = pg.math.Vector2(0, 0)
+            # No path or empty path, move directly toward player
+            dir_to_player = self.game.player.pos - self.pos
+            if dir_to_player.length() > 0:
+                self.vel = dir_to_player.normalize() * self.speed
+            else:
+                self.vel = pg.math.Vector2(0, 0)
         
         # Move in x direction and check for wall collisions
         self.pos.x += self.vel.x * self.game.dt

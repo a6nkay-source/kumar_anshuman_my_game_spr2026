@@ -5,6 +5,7 @@ import random # Import random for screen shakes
 from settings import * # Import all constants from settings
 from sprites import * # Import all sprite classes
 from map import Map, Camera # Import Map and Camera classes
+from utils import * # Import A* pathfinding function
 
 class Game:
     def __init__(self):
@@ -16,6 +17,7 @@ class Game:
         self.enemy_mult = 1.0 # Multiplier for enemy speed 
         self.collision_timer = 0  # Timer for collision particle effect
         self.screen_shake = 0 # Timer for screen shake effect
+        self.paused = False  # Pause state for the game
         self.show_home_screen() # Show the selection menu before starting
 # This home screen was a reference from the Kids Can Code tutorial on making a platformer, but I heavily modified it to fit the theme of Neon Escape.
     def show_home_screen(self):
@@ -96,6 +98,10 @@ class Game:
         self.camera = Camera(self.map.width, self.map.height) # Initialize camera with map size to follow player
 
     def update(self):
+        # Skip update if game is paused
+        if self.paused:
+            return
+        
         self.all_sprites.update()
         self.camera.update(self.player)# Update camera to follow player
         
@@ -139,6 +145,21 @@ class Game:
         self.draw_text(f"LEVEL {self.level_index + 1}", 20, WHITE, 10, 10) # Level indicator
         self.draw_text(f"CORES: {len(self.cores)}", 20, WHITE, 10, 35) # Cores remaining
         self.draw_text(f"MODE: {self.difficulty}", 20, WHITE, WIDTH - 150, 10) # Difficulty indicator
+        draw_health(self.screen, 10, HEIGHT - 525, self.player.health) # Draw health bar
+        pg.display.flip()
+        
+        # Draw pause screen overlay
+        if self.paused:
+            # Semi-transparent overlay
+            overlay = pg.Surface((WIDTH, HEIGHT))
+            overlay.set_alpha(100)
+            overlay.fill(BLACK)
+            self.screen.blit(overlay, (0, 0))
+            
+            # Pause text
+            self.draw_text_centered("PAUSED", 60, GREEN, HEIGHT // 2 - 40)
+            self.draw_text_centered("Press P to Resume", 24, WHITE, HEIGHT // 2 + 40)
+        
         pg.display.flip()
 
     def draw_text(self, text, size, color, x, y):
@@ -152,6 +173,9 @@ class Game:
             self.dt = self.clock.tick(FPS) / 1000.0
             for event in pg.event.get():
                 if event.type == pg.QUIT: return
+                if event.type == pg.KEYDOWN:
+                    if event.key == pg.K_p:  # Toggle pause on 'P' key press
+                        self.paused = not self.paused
             self.update()
             self.draw()
 
