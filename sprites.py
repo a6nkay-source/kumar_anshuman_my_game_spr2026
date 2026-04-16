@@ -25,7 +25,7 @@ class Player(pg.sprite.Sprite):
         self.rect.center = self.pos
         self.vel = pg.math.Vector2(0, 0)
         self.last_dash = -DASH_COOLDOWN
-        self.health = PLAYER_HEALTH
+        self.teleport_timer = 0
 
     def update(self):
         self.vel = pg.math.Vector2(0, 0)
@@ -80,7 +80,7 @@ class Enemy(pg.sprite.Sprite):
         pg.sprite.Sprite.__init__(self, self.groups)
         self.game = game
         self.image = pg.Surface((24, 24))
-        draw_pixel_rect(self.image, RED, self.image.get_rect())
+        draw_pixel_rect(self.image, RED, self.image.get_rect()) # This is the enemy drawn pixelated
         self.rect = self.image.get_rect()
         # Center the enemy on the tile
         self.pos = pg.math.Vector2(x * TILESIZE + TILESIZE // 2, y * TILESIZE + TILESIZE // 2)
@@ -92,53 +92,34 @@ class Enemy(pg.sprite.Sprite):
         self.path = []  # Current path from A* algorithm
         self.path_index = 0  # Current waypoint in path
         self.path_recalc_timer = 0  # Timer for path recalculation
-        self.path_recalc_interval = 30  # Recalculate path every 30 frames 
+        self.path_recalc_interval = 1  # Recalculate path every frame for very responsive chasing 
 
     def update(self):
         # Recalculate path periodically to account for player movement
-        self.path_recalc_timer += 1
+        self.path_recalc_timer += self.game.dt
         if self.path_recalc_timer >= self.path_recalc_interval:
             self.path_recalc_timer = 0
-            # Recalculate path to player using A* algorithm  
             self.path = astar_pathfind(self.pos, self.game.player.pos, self.game.map.data)
             self.path_index = 0
-        
-        # Follow the calculated path
+
+        # Follow the calculated path when possible
         if self.path and self.path_index < len(self.path):
             waypoint = pg.math.Vector2(self.path[self.path_index])
             dir_to_waypoint = waypoint - self.pos
-            
-            # If close enough to waypoint, move to next one
+
             if dir_to_waypoint.length() < self.speed * self.game.dt + 5:
                 self.path_index += 1
-                if self.path_index >= len(self.path):
-                    # Reached end of path, start moving toward player directly
-                    dir_to_player = self.game.player.pos - self.pos
-                    if dir_to_player.length() > 0:
-                        self.vel = dir_to_player.normalize() * self.speed
-                    else:
-                        self.vel = pg.math.Vector2(0, 0)
-                else:
-                    # Move toward next waypoint
-                    waypoint = pg.math.Vector2(self.path[self.path_index])
-                    dir_to_waypoint = waypoint - self.pos
-                    if dir_to_waypoint.length() > 0:
-                        self.vel = dir_to_waypoint.normalize() * self.speed
-                    else:
-                        self.vel = pg.math.Vector2(0, 0)
-            else:
-                # Move toward current waypoint
-                if dir_to_waypoint.length() > 0:
-                    self.vel = dir_to_waypoint.normalize() * self.speed
-                else:
-                    self.vel = pg.math.Vector2(0, 0)
-        else:
-            # No path or empty path, move directly toward player
-            dir_to_player = self.game.player.pos - self.pos
-            if dir_to_player.length() > 0:
-                self.vel = dir_to_player.normalize() * self.speed
+            elif dir_to_waypoint.length() > 0:
+                self.vel = dir_to_waypoint.normalize() * self.speed
             else:
                 self.vel = pg.math.Vector2(0, 0)
+        else:
+            self.vel = pg.math.Vector2(0, 0)
+
+        # If the path is missing or the enemy gets stuck, always fallback to direct pursuit
+        dir_to_player = self.game.player.pos - self.pos
+        if dir_to_player.length() > 0 and self.vel.length() == 0:
+            self.vel = dir_to_player.normalize() * self.speed
         
         # Move in x direction and check for wall collisions
         self.pos.x += self.vel.x * self.game.dt
@@ -191,6 +172,18 @@ class Portal(pg.sprite.Sprite):
         pg.draw.rect(self.image, BLACK, [4, 4, 24, 24], 2) # Portal with a black border
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = x * TILESIZE, y * TILESIZE # Position portal based on tile coordinates
+
+class TeleportPortal(pg.sprite.Sprite):
+    def __init__(self, game, x, y):
+        self.groups = game.all_sprites, game.teleporters
+        pg.sprite.Sprite.__init__(self, self.groups)
+        self.game = game
+        self.image = pg.Surface((TILESIZE, TILESIZE))
+        self.image.fill(BLUE)
+        pg.draw.rect(self.image, WHITE, [4, 4, TILESIZE - 8, TILESIZE - 8], 2)
+        pg.draw.circle(self.image, CYAN, (TILESIZE // 2, TILESIZE // 2), 8, 0)
+        self.rect = self.image.get_rect(topleft=(x * TILESIZE, y * TILESIZE))
+        self.dest = None
 
 # Want to add this for particle affects when colliding with enemies or getting cores
 class Particle(pg.sprite.Sprite):

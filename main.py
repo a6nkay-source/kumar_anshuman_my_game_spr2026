@@ -1,7 +1,7 @@
 # Need to add a home page to pick different difficulties and levels.
 import pygame as pg # Import pygame for game development
 import sys # Import sys for exiting the game
-import random # Import random for screen shakes
+from random import * # Import random for screen shakes
 from settings import * # Import all constants from settings
 from sprites import * # Import all sprite classes
 from map import Map, Camera # Import Map and Camera classes
@@ -18,60 +18,53 @@ class Game:
         self.collision_timer = 0  # Timer for collision particle effect
         self.screen_shake = 0 # Timer for screen shake effect
         self.paused = False  # Pause state for the game
-        self.show_home_screen() # Show the selection menu before starting
+        self.state = 'home'  # Game state: 'home', 'playing', 'game_over'
+    def handle_home_input(self, event):
+        if event.key == pg.K_1:
+            self.difficulty = "EASY" # Set difficulty to easy and apply enemy speed multiplier
+            self.enemy_mult = 0.7
+        if event.key == pg.K_2:
+            self.difficulty = "NORMAL"# Set difficulty to normal and apply enemy speed multiplier
+            self.enemy_mult = 1.0
+        if event.key == pg.K_3:
+            self.difficulty = "HARD"# Set difficulty to hard and apply enemy speed multiplier
+            self.enemy_mult = 1.5
+        if event.key == pg.K_UP:
+            self.level_index = (self.level_index + 1) % len(MAPS)
+        if event.key == pg.K_DOWN:
+            self.level_index = (self.level_index - 1) % len(MAPS)
+        if event.key == pg.K_SPACE:
+            self.state = 'playing'
+            self.load_level()
 # This home screen was a reference from the Kids Can Code tutorial on making a platformer, but I heavily modified it to fit the theme of Neon Escape.
     def show_home_screen(self):
-        waiting = True
-        while waiting:
-            self.clock.tick(FPS) 
-            self.screen.fill(BGCOLOR)
-            
-            self.draw_text_centered("NEON ESCAPE", 80, BLACK, HEIGHT // 4)
-            self.draw_text_centered("Presented by Anshuman Kumar", 24 , DARK_GRAY, HEIGHT // 4 + 60)
-            
-            
-            y_offset = HEIGHT // 2
-            
-            # Difficulty Logic Visuals
-            diff_color = GREEN if self.difficulty == "EASY" else (YELLOW if self.difficulty == "NORMAL" else RED)
-            self.draw_text_centered(f"SELECT DIFFICULTY", 20, WHITE, y_offset) # Prompt to select difficulty
-            self.draw_text_centered(f" {self.difficulty} ", 35, diff_color, y_offset + 40) # Highlight selected difficulty
-            self.draw_text_centered("1 EASY  2 NORMAL  3 HARD", 16, DARK_GRAY, y_offset + 80) # Instructions for difficulty selection
+        self.screen.fill(MAGENTA) 
+        
+        self.draw_text_centered("NEON ESCAPE", 80, BLACK, HEIGHT // 4)
+        self.draw_text_centered("Presented by Anshuman Kumar", 24 , DARK_GRAY, HEIGHT // 4 + 60)
+        
+        
+        y_offset = HEIGHT // 2
+        
+        # Difficulty Logic Visuals
+        diff_color = GREEN if self.difficulty == "EASY" else (YELLOW if self.difficulty == "NORMAL" else RED)
+        self.draw_text_centered(f"SELECT DIFFICULTY", 20, WHITE, y_offset) # Prompt to select difficulty
+        self.draw_text_centered(f" {self.difficulty} ", 35, diff_color, y_offset + 40) # Highlight selected difficulty
+        self.draw_text_centered("1 EASY  2 NORMAL  3 HARD", 16, DARK_GRAY, y_offset + 80) # Instructions for difficulty selection
 
-            # Level Visulas
-            self.draw_text_centered(f"STARTING LEVEL: {self.level_index + 1}", 20, WHITE, y_offset + 140)
-            self.draw_text_centered("USE UP / DOWN KEYS", 16, DARK_GRAY, y_offset + 170)
-            
-            # Start Text
-            alpha = 150 + (105 * (pg.time.get_ticks() % 1000 > 500)) 
-            start_color = (alpha, alpha, alpha)
-            self.draw_text_centered("PRESS SPACE TO START", 24, start_color, HEIGHT - 100)
-            
-            pg.display.flip()
-            
-            for event in pg.event.get():
-                if event.type == pg.QUIT:
-                    pg.quit()
-                    sys.exit()
-                if event.type == pg.KEYDOWN:
-                    if event.key == pg.K_1:
-                        self.difficulty = "EASY" # Set difficulty to easy and apply enemy speed multiplier
-                        self.enemy_mult = 0.7
-                    if event.key == pg.K_2:
-                        self.difficulty = "NORMAL"# Set difficulty to normal and apply enemy speed multiplier
-                        self.enemy_mult = 1.0
-                    if event.key == pg.K_3:
-                        self.difficulty = "HARD"# Set difficulty to hard and apply enemy speed multiplier
-                        self.enemy_mult = 1.5
-                    if event.key == pg.K_UP:
-                        self.level_index = (self.level_index + 1) % len(MAPS)
-                    if event.key == pg.K_DOWN:
-                        self.level_index = (self.level_index - 1) % len(MAPS)
-                    if event.key == pg.K_SPACE:
-                        waiting = False
+        # Level Visulas
+        self.draw_text_centered(f"STARTING LEVEL: {self.level_index + 1}", 20, WHITE, y_offset + 140)
+        self.draw_text_centered("USE UP / DOWN KEYS", 16, DARK_GRAY, y_offset + 170)
+        
+        # Start Text
+        alpha = 150 + (105 * (pg.time.get_ticks() % 1000 > 500)) 
+        start_color = (alpha, alpha, alpha)
+        self.draw_text_centered("PRESS SPACE TO START", 24, start_color, HEIGHT - 100)
+        
+        pg.display.flip()
 
     def draw_text_centered(self, text, size, color, y):
-        font = pg.font.SysFont('Courier', size, bold=True)
+        font = pg.font.SysFont('Times New Roman', size, bold=True)
         surf = font.render(text, True, color)
         rect = surf.get_rect(center=(WIDTH // 2, y))
         self.screen.blit(surf, rect)
@@ -82,6 +75,7 @@ class Game:
         self.enemies = pg.sprite.Group() # Group to hold enemy sprites for collision detection
         self.cores = pg.sprite.Group() # Group to hold energy core sprites for collection
         self.portals = pg.sprite.Group() # Group to hold portal sprites for level exit
+        self.teleporters = pg.sprite.Group() # Group to hold blue teleport portals
         self.collision_timer = 0  # Reset collision timer
         
         self.map = Map(MAPS[self.level_index])
@@ -94,7 +88,15 @@ class Game:
                     m.speed = ENEMY_SPEED * self.enemy_mult # Apply difficulty multiplier
                 if tile == 'C': EnergyCore(self, col, row) # Create energy core here
                 if tile == 'E': self.exit_node = Portal(self, col, row) # Create portal here
+                if tile == 'B': TeleportPortal(self, col, row) # Create blue teleport portal here
         
+        # Link blue portals in pairs so they teleport to each other
+        teleporters = list(self.teleporters)
+        for i in range(0, len(teleporters), 2):
+            if i + 1 < len(teleporters):
+                teleporters[i].dest = teleporters[i + 1] # Link portals in pairs
+                teleporters[i + 1].dest = teleporters[i] # Link portals in pairs 
+
         self.camera = Camera(self.map.width, self.map.height) # Initialize camera with map size to follow player
 
     def update(self):
@@ -104,6 +106,18 @@ class Game:
         
         self.all_sprites.update()
         self.camera.update(self.player)# Update camera to follow player
+
+        # Handle blue teleport portals
+        if self.player.teleport_timer <= 0:
+            hit = pg.sprite.spritecollideany(self.player, self.teleporters)
+            if hit and hit.dest:
+                dest = hit.dest
+                self.player.pos = pg.math.Vector2(dest.rect.centerx, dest.rect.centery)
+                self.player.rect.center = self.player.pos
+                self.player.vel = pg.math.Vector2(0, 0)
+                self.player.teleport_timer = 0.3
+        else:
+            self.player.teleport_timer = max(self.player.teleport_timer - self.dt, 0)
         
         # Handle timers
         if self.collision_timer > 0:
@@ -116,10 +130,11 @@ class Game:
             pass 
             
         if pg.sprite.spritecollide(self.player, self.enemies, False) and self.collision_timer <= 0: # If player hits an enemy and not in collision 
-            # Create collision particles
-            for _ in range(10):  # Create multiple particles for collision effect
-                Particle(self, self.player.rect.centerx, self.player.rect.centery, RED)
-            self.collision_timer = 500  # Show particles for 500ms before resetting
+            # Game over on contact with enemy
+            self.state = 'game_over'
+            # Create game over particles
+            self.all_sprites = pg.sprite.Group()  # Clear sprites for game over animation
+            return
 
         if len(self.cores) == 0: 
             # Change portal color to show it's active
@@ -145,7 +160,6 @@ class Game:
         self.draw_text(f"LEVEL {self.level_index + 1}", 20, WHITE, 10, 10) # Level indicator
         self.draw_text(f"CORES: {len(self.cores)}", 20, WHITE, 10, 35) # Cores remaining
         self.draw_text(f"MODE: {self.difficulty}", 20, WHITE, WIDTH - 150, 10) # Difficulty indicator
-        draw_health(self.screen, 10, HEIGHT - 525, self.player.health) # Draw health bar
         pg.display.flip()
         
         # Draw pause screen overlay
@@ -154,7 +168,7 @@ class Game:
             overlay = pg.Surface((WIDTH, HEIGHT))
             overlay.set_alpha(100)
             overlay.fill(BLACK)
-            self.screen.blit(overlay, (0, 0))
+            self.screen.blit(overlay, (0, 0)) # This is to draw the overlay on the screen when press p
             
             # Pause text
             self.draw_text_centered("PAUSED", 60, GREEN, HEIGHT // 2 - 40)
@@ -162,22 +176,64 @@ class Game:
         
         pg.display.flip()
 
+    def draw_game_over(self):
+        self.screen.fill(BLACK)
+        
+        # Create game over particles for animation if not already created
+        if not hasattr(self, 'game_over_started'):
+            self.game_over_started = True
+            self.all_sprites = pg.sprite.Group()  # Clear sprites for game over animation
+            for _ in range(50):  # More particles for dramatic effect
+                x = random.randint(0, WIDTH)
+                y = random.randint(0, HEIGHT)
+                Particle(self, x, y, RED)
+        
+        # Update and draw particles
+        self.all_sprites.update()
+        for sprite in self.all_sprites:
+            self.screen.blit(sprite.image, (sprite.rect.x, sprite.rect.y)) # Draw the particles with their own positions for the explosion effect
+        
+        # Game Over text
+        self.draw_text_centered("GAME OVER", 80, RED, HEIGHT // 3)
+        self.draw_text_centered("You were caught by the enemy!", 24, RED, HEIGHT // 3 + 60) # This is an additional message when caught by the enemy 
+        
+        # Restart instruction
+        alpha = 150 + (105 * (pg.time.get_ticks() % 1000 > 500))  # This is to flash the particles
+        restart_color = (alpha, alpha, alpha)
+        self.draw_text_centered("PRESS R TO RETURN TO MENU", 24, restart_color, HEIGHT - 100) # Instruction to return to menu
+        
+        pg.display.flip()
+
     def draw_text(self, text, size, color, x, y):
-        font = pg.font.SysFont('Courier', size, bold=True)
+        font = pg.font.SysFont('Times New Roman', size, bold=True)
         surf = font.render(text, True, color)
-        self.screen.blit(surf, (x, y))
+        self.screen.blit(surf, (x, y)) # Draw text at a specific position
 
     def run(self):
-        self.load_level()
         while True:
-            self.dt = self.clock.tick(FPS) / 1000.0
+            self.dt = self.clock.tick(FPS) / 1000.0 # Delta time for consistent movement.
             for event in pg.event.get():
-                if event.type == pg.QUIT: return
+                if event.type == pg.QUIT: 
+                    pg.quit()
+                    sys.exit()
                 if event.type == pg.KEYDOWN:
-                    if event.key == pg.K_p:  # Toggle pause on 'P' key press
-                        self.paused = not self.paused
-            self.update()
-            self.draw()
+                    if self.state == 'home':
+                        self.handle_home_input(event) # Handle input for home screen
+                    elif self.state == 'playing':
+                        if event.key == pg.K_p:  # Toggle pause on 'P' key press
+                            self.paused = not self.paused
+                    elif self.state == 'game_over':
+                        if event.key == pg.K_r:
+                            self.state = 'home'
+                            if hasattr(self, 'game_over_started'): # This is to reset the particles 
+                                delattr(self, 'game_over_started') # This is made to allow particles ot be created again.
+            if self.state == 'home': # Show home screen in the home state.
+                self.show_home_screen()
+            elif self.state == 'playing':
+                self.update() # Update game Logic 
+                self.draw() # Draw everything on the screen
+            elif self.state == 'game_over':
+                self.draw_game_over()
 
 if __name__ == "__main__":
     g = Game()

@@ -1,5 +1,6 @@
 import heapq # Used for the A* pathfinding algorithm
 from settings import * 
+import random
 # I am using A* pathfinding for the enemies 
 # to find the player, and this is the implementation of it.
 # I referenced the A* algorithm from Red Blob Games, but I heavily modified it to fit the needs of my game. 
@@ -54,12 +55,12 @@ def astar_pathfind(start_pos, goal_pos, map_data, max_iterations=1000):
     if start_pos == goal_pos:
         return []
     
-    # Convert pixel positions to grid positions
-    start_grid = (int(start_pos[0] / TILESIZE), int(start_pos[1] / TILESIZE))
-    goal_grid = (int(goal_pos[0] / TILESIZE), int(goal_pos[1] / TILESIZE))
+    # Convert pixel positions to grid positions, rounding to the nearest tile
+    start_grid = (int(round(start_pos[0] / TILESIZE)), int(round(start_pos[1] / TILESIZE))) # Converts pixel position to grid position
+    goal_grid = (int(round(goal_pos[0] / TILESIZE)), int(round(goal_pos[1] / TILESIZE))) # Converts pixel position to grid position
     
     # Check if goal is walkable
-    if goal_grid[1] < len(map_data) and goal_grid[0] < len(map_data[0]):
+    if goal_grid[1] < len(map_data) and goal_grid[0] < len(map_data[0]): # This checks if the goal is within bounds
         if map_data[goal_grid[1]][goal_grid[0]] == '1':
             return []
     else:
@@ -80,12 +81,13 @@ def astar_pathfind(start_pos, goal_pos, map_data, max_iterations=1000):
             # Reconstruct path
             path = []
             node = current
-            while node.parent:
+            while node:
                 path.append(node.pos)
                 node = node.parent
             path.reverse()
-            # Convert back to pixel coordinates (tile center)
-            return [(x * TILESIZE + TILESIZE // 2, y * TILESIZE + TILESIZE // 2) for x, y in path]
+            # Convert back to pixel coordinates (tile center), exclude start position
+            pixel_path = [(x * TILESIZE + TILESIZE // 2, y * TILESIZE + TILESIZE // 2) for x, y in path[1:]]
+            return pixel_path
         
         closed_set.add(current.pos)
         
@@ -105,7 +107,7 @@ def astar_pathfind(start_pos, goal_pos, map_data, max_iterations=1000):
                     existing = node
                     break
             
-            if existing is None:
+            if existing is None: # This is if the neighbor is not in the open list.
                 heapq.heappush(open_list, neighbor)
             elif g_cost < existing.g_cost:
                 existing.g_cost = g_cost # This updates the exisisting cost
@@ -116,13 +118,4 @@ def astar_pathfind(start_pos, goal_pos, map_data, max_iterations=1000):
 # Health bar function used to draw it
 
     return False
-def draw_health(surf, x, y, pct):
-    if pct < 0:
-        pct = 0
-    BAR_LENGTH = 100
-    BAR_HEIGHT = 10
-    fill = (pct/100) * BAR_LENGTH 
-    outline_rect = pg.Rect(x,y,BAR_LENGTH,BAR_HEIGHT)
-    fill_rect = pg.Rect(x,y,fill,BAR_HEIGHT)
-    pg.draw.rect(surf, RED, fill_rect)
-    pg.draw.rect(surf, WHITE, outline_rect, 2)
+
