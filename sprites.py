@@ -186,7 +186,7 @@ class TeleportPortal(pg.sprite.Sprite):
         self.dest = None
 
 # Want to add this for particle affects when colliding with enemies or getting cores
-class Particle(pg.sprite.Sprite):
+class Particle(pg.sprite.Sprite): 
     def __init__(self, game, x, y, color):
         self.groups = game.all_sprites
         pg.sprite.Sprite.__init__(self, self.groups)

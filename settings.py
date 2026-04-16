@@ -1,4 +1,5 @@
 import pygame as pg
+from os import path
 
 # Game Constants
 WIDTH = 800
@@ -19,14 +20,15 @@ DARK_GRAY = (40, 40, 50)
 GREEN = (50, 255, 50)
 BLACK = (0, 0, 0)
 
+script_dir = path.dirname(__file__)
 # Map Files
 MAPS = ['level1.txt', 'level2.txt'] # Need to make more maps
 
 # Player Settings
 PLAYER_SPEED = 300
 DASH_SPEED_MULT = 3
-DASH_DURATION = 150000
-DASH_COOLDOWN = 800
+DASH_DURATION = 1500 # Duration of the dash in milliseconds
+DASH_COOLDOWN = 8000 # Cooldown time in milliseconds
 
 # Enemy Settings
 ENEMY_SPEED = 400

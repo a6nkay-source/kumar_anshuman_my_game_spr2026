@@ -6,12 +6,15 @@ from settings import * # Import all constants from settings
 from sprites import * # Import all sprite classes
 from map import Map, Camera # Import Map and Camera classes
 from utils import * # Import A* pathfinding function
+from os import path # Import path for file handling
 
 class Game:
     def __init__(self):
         pg.init() # Initialize all imported pygame modules
         self.screen = pg.display.set_mode((WIDTH, HEIGHT)) # Set up the game window
         self.clock = pg.time.Clock() # Clock to manage frame rate
+        self.game_folder = path.dirname(__file__)  # Get the directory of the game script
+        self.img_dir = path.join(self.game_folder, 'images')  # Directory containing images
         self.level_index = 0
         self.difficulty = "NORMAL" # Default difficulty
         self.enemy_mult = 1.0 # Multiplier for enemy speed 
@@ -77,6 +80,8 @@ class Game:
         self.portals = pg.sprite.Group() # Group to hold portal sprites for level exit
         self.teleporters = pg.sprite.Group() # Group to hold blue teleport portals
         self.collision_timer = 0  # Reset collision timer
+        # Added a background image for the levls for a better design.
+        self.background = pg.image.load(path.join(self.img_dir, 'background.png')).convert() # Load background image for the level
         
         self.map = Map(MAPS[self.level_index])
         for row, tiles in enumerate(self.map.data):
@@ -152,7 +157,11 @@ class Game:
                     sys.exit()
 
     def draw(self):
-        self.screen.fill(BGCOLOR)
+        # Scale background image to fit screen and draw it
+        scaled_bg = pg.transform.scale(self.background, (WIDTH, HEIGHT))
+        self.screen.blit(scaled_bg, (0, 0))
+        
+        # Draw all sprites on top of the background
         for sprite in self.all_sprites:
             self.screen.blit(sprite.image, self.camera.apply(sprite))
         
@@ -160,7 +169,9 @@ class Game:
         self.draw_text(f"LEVEL {self.level_index + 1}", 20, WHITE, 10, 10) # Level indicator
         self.draw_text(f"CORES: {len(self.cores)}", 20, WHITE, 10, 35) # Cores remaining
         self.draw_text(f"MODE: {self.difficulty}", 20, WHITE, WIDTH - 150, 10) # Difficulty indicator
-        pg.display.flip()
+        
+        # Draw dash cooldown timer at the top center
+        self.draw_cooldown_timer()
         
         # Draw pause screen overlay
         if self.paused:
@@ -208,6 +219,47 @@ class Game:
         font = pg.font.SysFont('Times New Roman', size, bold=True)
         surf = font.render(text, True, color)
         self.screen.blit(surf, (x, y)) # Draw text at a specific position
+
+    def draw_cooldown_timer(self):
+        # Calculate cooldown progress
+        now = pg.time.get_ticks()
+        time_since_dash = now - self.player.last_dash
+        cooldown_remaining = max(0, DASH_COOLDOWN - time_since_dash) # Time remaining on cooldown
+        cooldown_progress = 1 - (cooldown_remaining / DASH_COOLDOWN)  # 0 = on cooldown, 1 = ready
+        
+        # Timer bar dimensions
+        bar_width = 200
+        bar_height = 20
+        bar_x = (WIDTH // 2) - (bar_width // 2)
+        bar_y = 10
+        
+        # Draw background bar (cooldown state)
+        bg_color = RED if cooldown_remaining > 0 else CYAN # This shows when the bar ready to speed up.
+        pg.draw.rect(self.screen, DARK_GRAY, (bar_x, bar_y, bar_width, bar_height), 2) # The border for the cooldown bar.
+        
+        # Draw cooldown progress bar
+        filled_width = int(bar_width * cooldown_progress)
+        if cooldown_remaining > 0:
+            pg.draw.rect(self.screen, YELLOW, (bar_x, bar_y, filled_width, bar_height)) # This is the cooldown progress bar that fills up as the dash becomes ready.
+        else:
+            pg.draw.rect(self.screen, CYAN, (bar_x, bar_y, bar_width, bar_height)) # This fills the bar completely when the dash is ready to use.
+        
+        # Draw border
+        pg.draw.rect(self.screen, WHITE, (bar_x, bar_y, bar_width, bar_height), 2) # This is the white border around the cooldown bar for a pixelated like effect.
+        
+        # Draw cooldown text
+        seconds_remaining = cooldown_remaining / 1000.0
+        if cooldown_remaining > 0:
+            timer_text = f"COOLDOWN: {seconds_remaining:.1f}s"
+            color = YELLOW
+        else:
+            timer_text = "READY!"
+            color = CYAN
+        
+        font = pg.font.SysFont('Times New Roman', 14, bold=True)
+        surf = font.render(timer_text, True, color)
+        text_rect = surf.get_rect(center=(WIDTH // 2, bar_y + bar_height // 2 + 1))
+        self.screen.blit(surf, text_rect)
 
     def run(self):
         while True:
