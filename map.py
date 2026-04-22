@@ -7,10 +7,26 @@ class Map:
         self.data = [] 
         with open(filename, 'rt') as f:
             for line in f:
-                self.data.append(line.strip())
+                line = line.strip()
+                # Skip empty lines and comment lines
+                if line and not line.startswith('#'):
+                    self.data.append(line)
         
-        self.tilewidth = len(self.data[0]) # Number of columns in the map
-        self.tileheight = len(self.data) # Number of rows in the map
+        # Ensure all rows have the same width by padding or truncating
+        if self.data:
+            self.tilewidth = len(self.data[0])  # Width of first row
+            # Validate all rows have the same width
+            for i, row in enumerate(self.data):
+                if len(row) != self.tilewidth:
+                    # Pad shorter rows or truncate longer ones
+                    if len(row) < self.tilewidth:
+                        self.data[i] = row + '1' * (self.tilewidth - len(row))
+                    else:
+                        self.data[i] = row[:self.tilewidth]
+        else:
+            self.tilewidth = 0
+        
+        self.tileheight = len(self.data)  # Number of rows in the map
         self.width = self.tilewidth * TILESIZE
         self.height = self.tileheight * TILESIZE
 

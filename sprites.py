@@ -1,7 +1,8 @@
 from random import *
 import pygame as pg
 from settings import *
-from utils import astar_pathfind # This is the A* pathfinding function 
+from utils import astar_pathfind # This is the A* pathfinding function
+from math import cos, sin # Import trigonometric functions for particle physics 
 
 # Make this to show borders bbetter for a better User Interface
 # The user will have a better experience with this 
@@ -92,56 +93,81 @@ class Enemy(pg.sprite.Sprite):
         self.path = []  # Current path from A* algorithm
         self.path_index = 0  # Current waypoint in path
         self.path_recalc_timer = 0  # Timer for path recalculation
-        self.path_recalc_interval = 1  # Recalculate path every frame for very responsive chasing 
+        self.path_recalc_interval = 0.5  # Recalculate path every 0.5 seconds to avoid excessive recalculation
+        self.stuck_timer = 0  # Timer to detect if enemy is stuck
+        self.last_pos = self.pos.copy()  # Track previous position
+        self.stuck_threshold = 0.3  # If no movement for 0.3 seconds, consider stuck
 
     def update(self):
-        # Recalculate path periodically to account for player movement
-        self.path_recalc_timer += self.game.dt
-        if self.path_recalc_timer >= self.path_recalc_interval:
-            self.path_recalc_timer = 0
-            self.path = astar_pathfind(self.pos, self.game.player.pos, self.game.map.data)
+        # Check distance to player
+        distance_to_player = (self.pos - self.game.player.pos).length()
+        
+        # Only chase if player is within max chase distance
+        if distance_to_player > MAX_CHASE_DISTANCE:
+            # Player is too far - stop chasing
+            self.vel = pg.math.Vector2(0, 0)
+            self.path = []
             self.path_index = 0
-
-        # Follow the calculated path when possible
-        if self.path and self.path_index < len(self.path):
-            waypoint = pg.math.Vector2(self.path[self.path_index])
-            dir_to_waypoint = waypoint - self.pos
-
-            if dir_to_waypoint.length() < self.speed * self.game.dt + 5:
-                self.path_index += 1
-            elif dir_to_waypoint.length() > 0:
-                self.vel = dir_to_waypoint.normalize() * self.speed
+        else:
+            # Player is in range - chase normally
+            # Track if stuck
+            self.stuck_timer += self.game.dt
+            if self.stuck_timer >= 0.1:  # Check every 0.1 seconds
+                distance_moved = (self.pos - self.last_pos).length()
+                if distance_moved < 5:  # If moved less than 5 pixels
+                    self.stuck_timer = 0
+                else:
+                    self.stuck_timer = 0
+                    self.last_pos = self.pos.copy()
+            
+            # Recalculate path periodically
+            self.path_recalc_timer += self.game.dt
+            if self.path_recalc_timer >= self.path_recalc_interval:
+                self.path_recalc_timer = 0
+                self.path = astar_pathfind(self.pos, self.game.player.pos, self.game.map.data)
+                self.path_index = 0
+            
+            # Follow the calculated path
+            if self.path and self.path_index < len(self.path):
+                waypoint = pg.math.Vector2(self.path[self.path_index])
+                dir_to_waypoint = waypoint - self.pos
+                
+                if dir_to_waypoint.length() < self.speed * self.game.dt + 10:
+                    self.path_index += 1
+                elif dir_to_waypoint.length() > 0:
+                    self.vel = dir_to_waypoint.normalize() * self.speed
+                else:
+                    self.vel = pg.math.Vector2(0, 0)
             else:
                 self.vel = pg.math.Vector2(0, 0)
-        else:
-            self.vel = pg.math.Vector2(0, 0)
-
-        # If the path is missing or the enemy gets stuck, always fallback to direct pursuit
-        dir_to_player = self.game.player.pos - self.pos
-        if dir_to_player.length() > 0 and self.vel.length() == 0:
-            self.vel = dir_to_player.normalize() * self.speed
         
         # Move in x direction and check for wall collisions
         self.pos.x += self.vel.x * self.game.dt
-        self.rect.x = self.pos.x
+        self.rect.centerx = self.pos.x
         self.collide_with_walls('x')
         
         # Move in y direction and check for wall collisions
         self.pos.y += self.vel.y * self.game.dt
-        self.rect.y = self.pos.y
+        self.rect.centery = self.pos.y
         self.collide_with_walls('y')
 
     def collide_with_walls(self, dir):
         hits = pg.sprite.spritecollide(self, self.game.walls, False)
         if hits:
             if dir == 'x':  # Horizontal collision
-                if self.vel.x > 0: self.pos.x = hits[0].rect.left - self.rect.width
-                if self.vel.x < 0: self.pos.x = hits[0].rect.right
-                self.rect.x = self.pos.x
+                if self.vel.x > 0:  # Moving right
+                    self.pos.x = hits[0].rect.left - self.rect.width // 2
+                if self.vel.x < 0:  # Moving left
+                    self.pos.x = hits[0].rect.right + self.rect.width // 2
+                self.rect.centerx = self.pos.x
+                self.vel.x = 0  # Stop horizontal movement
             if dir == 'y':  # Vertical collision
-                if self.vel.y > 0: self.pos.y = hits[0].rect.top - self.rect.height
-                if self.vel.y < 0: self.pos.y = hits[0].rect.bottom
-                self.rect.y = self.pos.y
+                if self.vel.y > 0:  # Moving down
+                    self.pos.y = hits[0].rect.top - self.rect.height // 2
+                if self.vel.y < 0:  # Moving up
+                    self.pos.y = hits[0].rect.bottom + self.rect.height // 2
+                self.rect.centery = self.pos.y
+                self.vel.y = 0  # Stop vertical movement
 
 class Wall(pg.sprite.Sprite):
     def __init__(self, game, x, y):
@@ -191,21 +217,32 @@ class Particle(pg.sprite.Sprite):
         self.groups = game.all_sprites
         pg.sprite.Sprite.__init__(self, self.groups)
         self.game = game
-        size = randint(5, 25) # Random size for particles for a nice look
+        size = randint(3, 15) # Random size for particles for a nice look
         self.image = pg.Surface((size, size)) # Create a small surface 
         self.image.fill(color) # Particles will be a specific color. 
         self.rect = self.image.get_rect() # Rect: Used as the position is needed to be found.
         self.pos = pg.math.Vector2(x, y) 
 
-        # Random burst direction
-        self.vel = pg.math.Vector2(uniform(-1, 1), uniform(-1, 1)) * 100
+        # Random burst direction with variable speeds
+        angle = uniform(0, 2 * 3.14159)  # Random angle in full circle
+        speed = uniform(150, 400)  # Variable speed for natural spread
+        self.vel = pg.math.Vector2(speed * cos(angle), speed * sin(angle))
+        self.acc = pg.math.Vector2(0, 300)  # Gravity acceleration downward
         self.life = 255 # Opacity/Life timer
+        self.max_life = 255
 
     def update(self):
-        self.life -= 15 # This will make the particles fade over time
+        # Apply gravity/acceleration
+        self.vel += self.acc * self.game.dt
+        # Apply velocity to position
+        self.pos += self.vel * self.game.dt
+        self.rect.center = self.pos
+        
+        # Fade out over time
+        self.life -= 12 # Faster fade for more dramatic effect
         if self.life <= 0: # Remove the particle when it goes away.
             self.kill()
         else:
-            self.pos += self.vel * self.game.dt
-            self.rect.center = self.pos
-            self.image.set_alpha(self.life)
+            # Calculate alpha from remaining life
+            alpha = int((self.life / self.max_life) * 255)
+            self.image.set_alpha(alpha)

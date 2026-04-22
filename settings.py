@@ -32,3 +32,4 @@ DASH_COOLDOWN = 8000 # Cooldown time in milliseconds
 
 # Enemy Settings
 ENEMY_SPEED = 300
+MAX_CHASE_DISTANCE = 800  # Pixels - enemies stop chasing if player is farther than this

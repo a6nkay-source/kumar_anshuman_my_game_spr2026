@@ -88,7 +88,8 @@ class Game:
         self.collision_timer = 0  # Reset collision timer
         self.screen_shake = 1500  # Screen shake duration in milliseconds when player enters
         # Added a background image for the levls for a better design
-        self.background = pg.image.load(path.join(self.img_dir, 'background.png')).convert() # Load background image for the level
+        level_images = ['background.png', 'bg_2.png', 'bg_3.png']  # One image for each level
+        self.background = pg.image.load(path.join(self.img_dir, level_images[self.level_index])).convert() # Load background image for the level
         
         self.map = Map(MAPS[self.level_index])
         for row, tiles in enumerate(self.map.data):
@@ -185,6 +186,10 @@ class Game:
             sprite_pos = self.camera.apply(sprite)
             self.screen.blit(sprite.image, (sprite_pos.x + shake_offset[0], sprite_pos.y + shake_offset[1]))
         
+        # Apply flashlight effect for level 3 (index 2)
+        if self.level_index == 2:
+            self.draw_flashlight(shake_offset)
+        
         # User Interface
         self.draw_text(f"LEVEL {self.level_index + 1}", 20, WHITE, 10 + shake_offset[0], 10 + shake_offset[1]) # Level indicator
         self.draw_text(f"CORES: {len(self.cores)}", 20, WHITE, 10 + shake_offset[0], 35 + shake_offset[1]) # Cores remaining
@@ -203,9 +208,31 @@ class Game:
             
             # Pause text
             self.draw_text_centered("PAUSED", 60, GREEN, HEIGHT // 2 - 40)
-            self.draw_text_centered("Press P to Resume", 24, WHITE, HEIGHT // 2 + 40)
+            self.draw_text_centered("Press P to Resume", 24, WHITE, HEIGHT // 2 + 40) # This is the button to resume the game.
         
         pg.display.flip()
+
+    def draw_flashlight(self, shake_offset=(0, 0)):
+        # Get player position on screen (account for camera)
+        player_screen_pos = self.camera.apply(self.player)
+        flashlight_x = int(player_screen_pos.x + shake_offset[0]) # This is to calculate the flashlight center(x coordinate).
+        flashlight_y = int(player_screen_pos.y + shake_offset[1])# This is to calculate the flashlight center(y coordinate).
+        
+        # Create dark overlay surface with per-pixel alpha
+        dark_overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+        
+        # Fill with kinda transparent dark shade
+        dark_overlay.fill((0, 0, 0, 230))
+        
+        # Draw radial gradient for flashlight: reveals the scene underneath 
+        flashlight_radius = 180
+        for radius in range(flashlight_radius, 0, -4):
+            # Fade from transparent to opaque from center outward
+            alpha = int((1 - radius / flashlight_radius) ** 2 * 230)
+            pg.draw.circle(dark_overlay, (0, 0, 0, alpha), (flashlight_x, flashlight_y), radius)
+        
+        # Blit the dark overlay with the flashlight cutout
+        self.screen.blit(dark_overlay, (0, 0))
 
     def draw_game_over(self):
         self.screen.fill(BLACK)

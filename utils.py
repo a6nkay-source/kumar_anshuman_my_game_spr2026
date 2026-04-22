@@ -50,32 +50,42 @@ def get_neighbors(pos, map_data): # Get walkable tiles adjacent to the current t
     return neighbors
 
 
-def astar_pathfind(start_pos, goal_pos, map_data, max_iterations=1000):
-   
-    if start_pos == goal_pos:
+def astar_pathfind(start_pos, goal_pos, map_data, max_iterations=500):
+    # Convert start and goal to grid positions first
+    start_grid = (int(round(start_pos[0] / TILESIZE)), int(round(start_pos[1] / TILESIZE)))
+    goal_grid = (int(round(goal_pos[0] / TILESIZE)), int(round(goal_pos[1] / TILESIZE)))
+    
+    # If already at goal or too close, no path needed
+    if start_grid == goal_grid:
         return []
     
-    # Convert pixel positions to grid positions, rounding to the nearest tile
-    start_grid = (int(round(start_pos[0] / TILESIZE)), int(round(start_pos[1] / TILESIZE))) # Converts pixel position to grid position
-    goal_grid = (int(round(goal_pos[0] / TILESIZE)), int(round(goal_pos[1] / TILESIZE))) # Converts pixel position to grid position
+    # Check bounds for goal
+    if not (0 <= goal_grid[0] < len(map_data[0]) and 0 <= goal_grid[1] < len(map_data)):
+        return []
     
     # Check if goal is walkable
-    if goal_grid[1] < len(map_data) and goal_grid[0] < len(map_data[0]): # This checks if the goal is within bounds
-        if map_data[goal_grid[1]][goal_grid[0]] == '1':
-            return []
-    else:
-        return []
+    if map_data[goal_grid[1]][goal_grid[0]] == '1':
+        # Try to find nearest walkable tile to goal
+        for dx in range(-2, 3):
+            for dy in range(-2, 3):
+                nx, ny = goal_grid[0] + dx, goal_grid[1] + dy
+                if 0 <= nx < len(map_data[0]) and 0 <= ny < len(map_data) and map_data[ny][nx] != '1':
+                    goal_grid = (nx, ny)
+                    break
     
     open_list = []
     closed_set = set()
+    open_set = set()  # For O(1) lookup
     
     start_node = Node(start_grid, 0, heuristic(start_grid, goal_grid))
     heapq.heappush(open_list, start_node)
+    open_set.add(start_grid)
     
     iterations = 0
     while open_list and iterations < max_iterations:
         iterations += 1
         current = heapq.heappop(open_list)
+        open_set.discard(current.pos)
         
         if current.pos == goal_grid:
             # Reconstruct path
@@ -101,18 +111,17 @@ def astar_pathfind(start_pos, goal_pos, map_data, max_iterations=1000):
             neighbor = Node(neighbor_pos, g_cost, h_cost, parent=current)
             
             # Check if this node is already in open_list with higher cost
-            existing = None
-            for node in open_list:
-                if node.pos == neighbor_pos: 
-                    existing = node
-                    break
-            
-            if existing is None: # This is if the neighbor is not in the open list.
+            if neighbor_pos in open_set:
+                # Find and update if better path found
+                for node in open_list:
+                    if node.pos == neighbor_pos and g_cost < node.g_cost:
+                        node.g_cost = g_cost
+                        node.parent = current
+                        heapq.heapify(open_list)
+                        break
+            else:
                 heapq.heappush(open_list, neighbor)
-            elif g_cost < existing.g_cost:
-                existing.g_cost = g_cost # This updates the exisisting cost
-                existing.parent = current # This updates the exsiisting parent
-                heapq.heapify(open_list)
+                open_set.add(neighbor_pos)
     
     return []  # No path found
 # Health bar function used to draw it
