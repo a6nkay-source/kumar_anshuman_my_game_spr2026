@@ -1,12 +1,11 @@
-# Need to add a home page to pick different difficulties and levels.
-import pygame as pg # Import pygame for game development
-import sys # Import sys for exiting the game
 from random import * # Import random for screen shakes
 from settings import * # Import all constants from settings
 from sprites import * # Import all sprite classes
 from map import Map, Camera # Import Map and Camera classes
 from utils import * # Import A* pathfinding function
 from os import path # Import path for file handling
+from math import cos, sin # Import trigonometric functions for fireworks
+import sys # Import sys for exiting the game
 
 class Game:
     def __init__(self):
@@ -22,6 +21,13 @@ class Game:
         self.screen_shake = 0 # Timer for screen shake effect
         self.paused = False  # Pause state for the game
         self.state = 'home'  # Game state: 'home', 'playing', 'game_over'
+        pg.mixer.init()
+        self.audio_dir = path.join(self.game_folder, 'audio')  # Directory containing audio files
+        self.theme_sound = pg.mixer.Sound(path.join(self.audio_dir, 'theme_music.wav')) # Load background music
+        self.theme_sound.set_volume(0.5) # Set music volume
+        self.theme_sound.play(-1) # Play music in a loop
+        self.game_over_sound = pg.mixer.Sound(path.join(self.audio_dir, 'game_over.wav')) # Load game over sound
+        self.game_over_sound.set_volume(0.7) # Set game over sound volume
     def handle_home_input(self, event):
         if event.key == pg.K_1:
             self.difficulty = "EASY" # Set difficulty to easy and apply enemy speed multiplier
@@ -80,7 +86,8 @@ class Game:
         self.portals = pg.sprite.Group() # Group to hold portal sprites for level exit
         self.teleporters = pg.sprite.Group() # Group to hold blue teleport portals
         self.collision_timer = 0  # Reset collision timer
-        # Added a background image for the levls for a better design.
+        self.screen_shake = 1500  # Screen shake duration in milliseconds when player enters
+        # Added a background image for the levls for a better design
         self.background = pg.image.load(path.join(self.img_dir, 'background.png')).convert() # Load background image for the level
         
         self.map = Map(MAPS[self.level_index])
@@ -125,6 +132,9 @@ class Game:
             self.player.teleport_timer = max(self.player.teleport_timer - self.dt, 0)
         
         # Handle timers
+        if self.screen_shake > 0:
+            self.screen_shake -= self.dt * 1000  # Decrease screen shake timer
+        
         if self.collision_timer > 0:
             self.collision_timer -= self.dt * 1000  # Decrease timer
             if self.collision_timer <= 0:
@@ -137,6 +147,8 @@ class Game:
         if pg.sprite.spritecollide(self.player, self.enemies, False) and self.collision_timer <= 0: # If player hits an enemy and not in collision 
             # Game over on contact with enemy
             self.state = 'game_over'
+            self.theme_sound.stop()  # Stop the background music
+            self.game_over_sound.play()  # Play the game over sound
             # Create game over particles
             self.all_sprites = pg.sprite.Group()  # Clear sprites for game over animation
             return
@@ -152,26 +164,34 @@ class Game:
                 if self.level_index < len(MAPS):
                     self.load_level()
                 else:
-                    print("Game Over - You Escaped!") # If all cores collected and portal reached, end game
-                    pg.quit()
-                    sys.exit()
+                    # Victory! All levels completed
+                    self.state = 'victory'
+                    self.theme_sound.stop()  # Stop the background music
 
     def draw(self):
+        # Used AI to help with the screen shake effect: I used Gemini to come up with the code
+        # I used the prompt: For the game Neon Escape, I want to add a screen shake effect when the player enters a level. 
+        # Apply screen shake offset
+        shake_offset = (0, 0)
+        if self.screen_shake > 0:
+            shake_offset = (randint(-5, 5), randint(-5, 5))  # Random shake offset
+        
         # Scale background image to fit screen and draw it
-        scaled_bg = pg.transform.scale(self.background, (WIDTH, HEIGHT))
-        self.screen.blit(scaled_bg, (0, 0))
+        scaled_bg = pg.transform.scale(self.background, (WIDTH, HEIGHT)) # Scale background
+        self.screen.blit(scaled_bg, shake_offset) # Draw the background with shake offset for a dynamic effect
         
         # Draw all sprites on top of the background
         for sprite in self.all_sprites:
-            self.screen.blit(sprite.image, self.camera.apply(sprite))
+            sprite_pos = self.camera.apply(sprite)
+            self.screen.blit(sprite.image, (sprite_pos.x + shake_offset[0], sprite_pos.y + shake_offset[1]))
         
         # User Interface
-        self.draw_text(f"LEVEL {self.level_index + 1}", 20, WHITE, 10, 10) # Level indicator
-        self.draw_text(f"CORES: {len(self.cores)}", 20, WHITE, 10, 35) # Cores remaining
-        self.draw_text(f"MODE: {self.difficulty}", 20, WHITE, WIDTH - 150, 10) # Difficulty indicator
+        self.draw_text(f"LEVEL {self.level_index + 1}", 20, WHITE, 10 + shake_offset[0], 10 + shake_offset[1]) # Level indicator
+        self.draw_text(f"CORES: {len(self.cores)}", 20, WHITE, 10 + shake_offset[0], 35 + shake_offset[1]) # Cores remaining
+        self.draw_text(f"MODE: {self.difficulty}", 20, WHITE, WIDTH - 150 + shake_offset[0], 10 + shake_offset[1]) # Difficulty indicator
         
         # Draw dash cooldown timer at the top center
-        self.draw_cooldown_timer()
+        self.draw_cooldown_timer(shake_offset)
         
         # Draw pause screen overlay
         if self.paused:
@@ -215,12 +235,61 @@ class Game:
         
         pg.display.flip()
 
+    def draw_victory(self):
+        self.screen.fill(BLACK)
+        
+        # Initialize victory animation if not already started
+        if not hasattr(self, 'victory_start_time'): # This is to make the vitory animation
+            self.victory_start_time = pg.time.get_ticks()
+            self.all_sprites = pg.sprite.Group()  # Clear sprites for victory animation
+            self.last_firework_time = 0  # Track when last firework was created
+            self.firework_colors = [RED, MAGENTA, CYAN, YELLOW]  # Colorful fireworks
+        
+        # Calculate elapsed time in seconds
+        current_time = pg.time.get_ticks() # Current time
+        elapsed_time = (current_time - self.victory_start_time) / 1000.0
+        time_since_last_firework = (current_time - self.victory_start_time) - (self.last_firework_time * 1000)
+        
+        # Create fireworks every 400ms for 10 seconds (25 fireworks total)
+        if elapsed_time < 10 and time_since_last_firework > 400:
+            # Create a firework burst at a random position
+            firework_x = random.randint(WIDTH // 4, 3 * WIDTH // 4)  # Random X in middle 50% of screen
+            firework_y = random.randint(HEIGHT // 4, 3 * HEIGHT // 4)  # Random Y in middle 50% of screen
+            firework_color = random.choice(self.firework_colors)  # Random color
+            
+            # Create particles radiating outward from center point
+            for _ in range(50):  # 50 particles per firework burst
+                particle = Particle(self, firework_x, firework_y, firework_color)
+                # Create radial explosion pattern
+                angle = random.uniform(0, 2 * 3.14159)  # Random angle in full circle
+                speed = random.uniform(200, 400)  # Variable speed for natural spread
+                particle.vel = pg.math.Vector2(speed * cos(angle), speed * sin(angle)) # This sets the velocity based on the angle of the particles
+            
+            self.last_firework_time = elapsed_time # Update the last firework time
+        
+        # Update and draw particles
+        self.all_sprites.update()
+        for sprite in self.all_sprites:
+            self.screen.blit(sprite.image, (sprite.rect.x, sprite.rect.y)) # Draw the particles with their own positions for the explosion effect.
+        
+        # Draw victory text
+        self.draw_text_centered("GAME OVER", 80, RED, HEIGHT // 3) 
+        self.draw_text_centered("Congrats! You Have Passed All 3 Levels!!!!", 28, MAGENTA, HEIGHT // 3 + 70)
+        
+        # Return instruction (flashing after animation completes)
+        if elapsed_time >= 10:
+            alpha = 150 + (105 * (pg.time.get_ticks() % 1000 > 500))
+            return_color = (alpha, alpha, alpha)
+            self.draw_text_centered("PRESS R TO RETURN TO MENU", 24, return_color, HEIGHT - 100) 
+        
+        pg.display.flip()
+
     def draw_text(self, text, size, color, x, y):
-        font = pg.font.SysFont('Times New Roman', size, bold=True)
+        font = pg.font.SysFont('Times New Roman', size, bold=True) # This creates a font object 
         surf = font.render(text, True, color)
         self.screen.blit(surf, (x, y)) # Draw text at a specific position
 
-    def draw_cooldown_timer(self):
+    def draw_cooldown_timer(self, shake_offset=(0, 0)): # This draws the dash cooldown timer.
         # Calculate cooldown progress
         now = pg.time.get_ticks()
         time_since_dash = now - self.player.last_dash
@@ -228,10 +297,10 @@ class Game:
         cooldown_progress = 1 - (cooldown_remaining / DASH_COOLDOWN)  # 0 = on cooldown, 1 = ready
         
         # Timer bar dimensions
-        bar_width = 200
-        bar_height = 20
-        bar_x = (WIDTH // 2) - (bar_width // 2)
-        bar_y = 10
+        bar_width = 200 # Width of the cooldown bar
+        bar_height = 20 # Height of the cooldown bar
+        bar_x = (WIDTH // 2) - (bar_width // 2) + shake_offset[0] # Center the bar at the top of the screen with shake offset
+        bar_y = 10 + shake_offset[1]
         
         # Draw background bar (cooldown state)
         bg_color = RED if cooldown_remaining > 0 else CYAN # This shows when the bar ready to speed up.
@@ -258,7 +327,7 @@ class Game:
         
         font = pg.font.SysFont('Times New Roman', 14, bold=True)
         surf = font.render(timer_text, True, color)
-        text_rect = surf.get_rect(center=(WIDTH // 2, bar_y + bar_height // 2 + 1))
+        text_rect = surf.get_rect(center=(WIDTH // 2 + shake_offset[0], bar_y + bar_height // 2 + 1))
         self.screen.blit(surf, text_rect)
 
     def run(self):
@@ -277,8 +346,19 @@ class Game:
                     elif self.state == 'game_over':
                         if event.key == pg.K_r:
                             self.state = 'home'
+                            self.game_over_sound.stop()  # Stop the game over sound
+                            self.theme_sound.play(-1)  # Play the theme music in a loop
                             if hasattr(self, 'game_over_started'): # This is to reset the particles 
                                 delattr(self, 'game_over_started') # This is made to allow particles ot be created again.
+                    elif self.state == 'victory':
+                        if event.key == pg.K_r:
+                            self.state = 'home'
+                            self.level_index = 0  # Reset level index for next playthrough
+                            self.theme_sound.play(-1)  # Play the theme music in a loop
+                            if hasattr(self, 'victory_start_time'): # This is to reset the victory particles
+                                delattr(self, 'victory_start_time') # This is made to allow particles to be created again.
+                            if hasattr(self, 'last_wave_time'):
+                                delattr(self, 'last_wave_time')
             if self.state == 'home': # Show home screen in the home state.
                 self.show_home_screen()
             elif self.state == 'playing':
@@ -286,6 +366,8 @@ class Game:
                 self.draw() # Draw everything on the screen
             elif self.state == 'game_over':
                 self.draw_game_over()
+            elif self.state == 'victory':
+                self.draw_victory()
 
 if __name__ == "__main__":
     g = Game()

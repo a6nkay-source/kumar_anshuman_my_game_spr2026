@@ -22,7 +22,7 @@ BLACK = (0, 0, 0)
 
 script_dir = path.dirname(__file__)
 # Map Files
-MAPS = ['level1.txt', 'level2.txt'] # Need to make more maps
+MAPS = ['level1.txt', 'level2.txt', 'level3.txt'] # Need to make more maps
 
 # Player Settings
 PLAYER_SPEED = 300
@@ -31,4 +31,4 @@ DASH_DURATION = 1500 # Duration of the dash in milliseconds
 DASH_COOLDOWN = 8000 # Cooldown time in milliseconds
 
 # Enemy Settings
-ENEMY_SPEED = 400
+ENEMY_SPEED = 300
