@@ -10,7 +10,7 @@ import random
 
 
 class Node:
-    def __init__(self, pos, g_cost=0, h_cost=0, parent=None):
+    def __init__(self, pos, g_cost=0, h_cost=0, parent=None): # pos is position of the node in the grid.
         self.pos = pos  # (x, y) grid position
         self.g_cost = g_cost  # Cost from start
         self.h_cost = h_cost    
@@ -38,13 +38,13 @@ def get_neighbors(pos, map_data): # Get walkable tiles adjacent to the current t
     neighbors = []
     
     # Check all directions 
-    for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]: 
+    for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:  # Down, Up, Right, Left
         nx, ny = x + dx, y + dy
         
         # Check bounds
         if 0 <= ny < len(map_data) and 0 <= nx < len(map_data[0]): # Check if the map is within bounds
             # Check if not a wall
-            if map_data[ny][nx] != '1':
+            if map_data[ny][nx] != '1': # Check if the tile is walkable baiscally its not a wall
                 neighbors.append((nx, ny))
     
     return neighbors

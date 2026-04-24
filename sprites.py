@@ -93,7 +93,7 @@ class Enemy(pg.sprite.Sprite):
         self.path = []  # Current path from A* algorithm
         self.path_index = 0  # Current waypoint in path
         self.path_recalc_timer = 0  # Timer for path recalculation
-        self.path_recalc_interval = 0.5  # Recalculate path every 0.5 seconds to avoid excessive recalculation
+        self.path_recalc_interval = 0.25  # Recalculate path every 0.25 seconds for smoother chasing
         self.stuck_timer = 0  # Timer to detect if enemy is stuck
         self.last_pos = self.pos.copy()  # Track previous position
         self.stuck_threshold = 0.3  # If no movement for 0.3 seconds, consider stuck
@@ -120,18 +120,22 @@ class Enemy(pg.sprite.Sprite):
                     self.stuck_timer = 0
                     self.last_pos = self.pos.copy()
             
+            # If the current path has been fully consumed, force a refresh immediately
+            if not self.path or self.path_index >= len(self.path):
+                self.path_recalc_timer = self.path_recalc_interval
+
             # Recalculate path periodically
             self.path_recalc_timer += self.game.dt
             if self.path_recalc_timer >= self.path_recalc_interval:
                 self.path_recalc_timer = 0
                 self.path = astar_pathfind(self.pos, self.game.player.pos, self.game.map.data)
                 self.path_index = 0
-            
+
             # Follow the calculated path
             if self.path and self.path_index < len(self.path):
                 waypoint = pg.math.Vector2(self.path[self.path_index])
                 dir_to_waypoint = waypoint - self.pos
-                
+
                 if dir_to_waypoint.length() < self.speed * self.game.dt + 10:
                     self.path_index += 1
                 elif dir_to_waypoint.length() > 0:

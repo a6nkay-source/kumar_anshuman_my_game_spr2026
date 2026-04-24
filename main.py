@@ -21,13 +21,18 @@ class Game:
         self.screen_shake = 0 # Timer for screen shake effect
         self.paused = False  # Pause state for the game
         self.state = 'home'  # Game state: 'home', 'playing', 'game_over'
+        self.time_left = 100.0  # Time remaining for the whole game
+        self.level_start_time = None  # Start time for the timer
+        self.game_over_reason = None  # Reason for game over: 'enemy' or 'timeout'
         pg.mixer.init()
         self.audio_dir = path.join(self.game_folder, 'audio')  # Directory containing audio files
-        self.theme_sound = pg.mixer.Sound(path.join(self.audio_dir, 'theme_music.wav')) # Load background music
+        self.theme_sound = pg.mixer.Sound(path.join(self.audio_dir, 'theme_music (2).wav')) # Load background music
         self.theme_sound.set_volume(0.5) # Set music volume
         self.theme_sound.play(-1) # Play music in a loop
         self.game_over_sound = pg.mixer.Sound(path.join(self.audio_dir, 'game_over.wav')) # Load game over sound
         self.game_over_sound.set_volume(0.7) # Set game over sound volume
+        self.victory_sound = pg.mixer.Sound(path.join(self.audio_dir, 'rap.wav')) # Load victory rap sound
+        self.victory_sound.set_volume(0.7) # Set victory sound volume
     def handle_home_input(self, event):
         if event.key == pg.K_1:
             self.difficulty = "EASY" # Set difficulty to easy and apply enemy speed multiplier
@@ -45,6 +50,8 @@ class Game:
         if event.key == pg.K_SPACE:
             self.state = 'playing'
             self.load_level()
+            self.level_start_time = pg.time.get_ticks()
+            self.time_left = 100.0
 # This home screen was a reference from the Kids Can Code tutorial on making a platformer, but I heavily modified it to fit the theme of Neon Escape.
     def show_home_screen(self):
         self.screen.fill(MAGENTA) 
@@ -141,6 +148,18 @@ class Game:
             if self.collision_timer <= 0:
                 self.load_level()  # Reset level after particle effect
         
+        # Game timer countdown
+        if self.level_start_time is not None:
+            elapsed = (pg.time.get_ticks() - self.level_start_time) / 1000.0
+            self.time_left = max(0, 120 - elapsed)
+            if self.time_left <= 0:
+                self.state = 'game_over'
+                self.game_over_reason = 'timeout'
+                self.theme_sound.stop()
+                self.game_over_sound.play()
+                self.all_sprites = pg.sprite.Group()
+                return
+        
         # Collisions
         if pg.sprite.spritecollide(self.player, self.cores, True): # Collect core and remove it from the game
             pass 
@@ -148,6 +167,7 @@ class Game:
         if pg.sprite.spritecollide(self.player, self.enemies, False) and self.collision_timer <= 0: # If player hits an enemy and not in collision 
             # Game over on contact with enemy
             self.state = 'game_over'
+            self.game_over_reason = 'enemy'
             self.theme_sound.stop()  # Stop the background music
             self.game_over_sound.play()  # Play the game over sound
             # Create game over particles
@@ -168,6 +188,7 @@ class Game:
                     # Victory! All levels completed
                     self.state = 'victory'
                     self.theme_sound.stop()  # Stop the background music
+                    self.victory_sound.play()  # Play the victory rap sound
 
     def draw(self):
         # Used AI to help with the screen shake effect: I used Gemini to come up with the code
@@ -193,7 +214,8 @@ class Game:
         # User Interface
         self.draw_text(f"LEVEL {self.level_index + 1}", 20, WHITE, 10 + shake_offset[0], 10 + shake_offset[1]) # Level indicator
         self.draw_text(f"CORES: {len(self.cores)}", 20, WHITE, 10 + shake_offset[0], 35 + shake_offset[1]) # Cores remaining
-        self.draw_text(f"MODE: {self.difficulty}", 20, WHITE, WIDTH - 150 + shake_offset[0], 10 + shake_offset[1]) # Difficulty indicator
+        self.draw_text(f"TIME: {self.time_left:.1f}s", 20, WHITE, WIDTH // 4 - 70 + shake_offset[0], 10 + shake_offset[1]) # Timer indicator
+        self.draw_text(f"MODE: {self.difficulty}", 20, WHITE, WIDTH - 150 + shake_offset[0], 35 + shake_offset[1]) # Difficulty indicator
         
         # Draw dash cooldown timer at the top center
         self.draw_cooldown_timer(shake_offset)
@@ -253,7 +275,10 @@ class Game:
         
         # Game Over text
         self.draw_text_centered("GAME OVER", 80, RED, HEIGHT // 3)
-        self.draw_text_centered("You were caught by the enemy!", 24, RED, HEIGHT // 3 + 60) # This is an additional message when caught by the enemy 
+        if self.game_over_reason == 'timeout':
+            self.draw_text_centered("Time has run out!", 24, RED, HEIGHT // 3 + 60)
+        else:
+            self.draw_text_centered("You were caught by the enemy!", 24, RED, HEIGHT // 3 + 60) # This is an additional message when caught by the enemy 
         
         # Restart instruction
         alpha = 150 + (105 * (pg.time.get_ticks() % 1000 > 500))  # This is to flash the particles
@@ -375,6 +400,7 @@ class Game:
                             self.state = 'home'
                             self.game_over_sound.stop()  # Stop the game over sound
                             self.theme_sound.play(-1)  # Play the theme music in a loop
+                            self.game_over_reason = None
                             if hasattr(self, 'game_over_started'): # This is to reset the particles 
                                 delattr(self, 'game_over_started') # This is made to allow particles ot be created again.
                     elif self.state == 'victory':
@@ -382,6 +408,7 @@ class Game:
                             self.state = 'home'
                             self.level_index = 0  # Reset level index for next playthrough
                             self.theme_sound.play(-1)  # Play the theme music in a loop
+                            self.victory_sound.stop()  # Stop the victory rap sound
                             if hasattr(self, 'victory_start_time'): # This is to reset the victory particles
                                 delattr(self, 'victory_start_time') # This is made to allow particles to be created again.
                             if hasattr(self, 'last_wave_time'):
