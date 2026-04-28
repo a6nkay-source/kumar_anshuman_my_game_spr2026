@@ -99,52 +99,49 @@ class Enemy(pg.sprite.Sprite):
         self.stuck_threshold = 0.3  # If no movement for 0.3 seconds, consider stuck
 
     def update(self):
-        # Check distance to player
-        distance_to_player = (self.pos - self.game.player.pos).length()
-        
-        # Only chase if player is within max chase distance
-        if distance_to_player > MAX_CHASE_DISTANCE:
-            # Player is too far - stop chasing
-            self.vel = pg.math.Vector2(0, 0)
-            self.path = []
-            self.path_index = 0
-        else:
-            # Player is in range - chase normally
-            # Track if stuck
-            self.stuck_timer += self.game.dt
-            if self.stuck_timer >= 0.1:  # Check every 0.1 seconds
-                distance_moved = (self.pos - self.last_pos).length()
-                if distance_moved < 5:  # If moved less than 5 pixels
-                    self.stuck_timer = 0
-                else:
-                    self.stuck_timer = 0
-                    self.last_pos = self.pos.copy()
-            
-            # If the current path has been fully consumed, force a refresh immediately
-            if not self.path or self.path_index >= len(self.path):
-                self.path_recalc_timer = self.path_recalc_interval
+        # Always chase the player with A* pathfinding.
+        # This prevents the enemy from stopping when the player moves far away.
+        self.stuck_timer += self.game.dt
+        if self.stuck_timer >= 0.1:  # Check every 0.1 seconds
+            distance_moved = (self.pos - self.last_pos).length()
+            if distance_moved < 5:  # If moved less than 5 pixels
+                self.stuck_timer = 0
+            else:
+                self.stuck_timer = 0
+                self.last_pos = self.pos.copy()
 
-            # Recalculate path periodically
+        # If there is no current path, or the current path is finished, recalculate immediately.
+        if not self.path or self.path_index >= len(self.path):
+            self.path = astar_pathfind(self.pos, self.game.player.pos, self.game.map.data)
+            self.path_index = 0
+            self.path_recalc_timer = 0
+        else:
+            # Recalculate path periodically while following a valid route.
             self.path_recalc_timer += self.game.dt
             if self.path_recalc_timer >= self.path_recalc_interval:
                 self.path_recalc_timer = 0
                 self.path = astar_pathfind(self.pos, self.game.player.pos, self.game.map.data)
                 self.path_index = 0
 
-            # Follow the calculated path
-            if self.path and self.path_index < len(self.path):
-                waypoint = pg.math.Vector2(self.path[self.path_index])
-                dir_to_waypoint = waypoint - self.pos
+        # Follow the calculated path if available.
+        if self.path and self.path_index < len(self.path):
+            waypoint = pg.math.Vector2(self.path[self.path_index])
+            dir_to_waypoint = waypoint - self.pos
 
-                if dir_to_waypoint.length() < self.speed * self.game.dt + 10:
-                    self.path_index += 1
-                elif dir_to_waypoint.length() > 0:
-                    self.vel = dir_to_waypoint.normalize() * self.speed
-                else:
-                    self.vel = pg.math.Vector2(0, 0)
+            if dir_to_waypoint.length() < self.speed * self.game.dt + 10:
+                self.path_index += 1
+            elif dir_to_waypoint.length() > 0:
+                self.vel = dir_to_waypoint.normalize() * self.speed
             else:
                 self.vel = pg.math.Vector2(0, 0)
-        
+        else:
+            # Fallback: if no path is available, keep moving directly toward the player.
+            dir_to_player = self.game.player.pos - self.pos
+            if dir_to_player.length() > 0:
+                self.vel = dir_to_player.normalize() * self.speed
+            else:
+                self.vel = pg.math.Vector2(0, 0)
+
         # Move in x direction and check for wall collisions
         self.pos.x += self.vel.x * self.game.dt
         self.rect.centerx = self.pos.x

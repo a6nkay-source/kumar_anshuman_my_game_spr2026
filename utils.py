@@ -9,7 +9,7 @@ import random
 # estimate the distance between 2 coordinate points 
 
 
-class Node:
+class Node: # This is the class for node seeing the position.
     def __init__(self, pos, g_cost=0, h_cost=0, parent=None): # pos is position of the node in the grid.
         self.pos = pos  # (x, y) grid position
         self.g_cost = g_cost  # Cost from start
@@ -51,6 +51,10 @@ def get_neighbors(pos, map_data): # Get walkable tiles adjacent to the current t
 
 
 def astar_pathfind(start_pos, goal_pos, map_data, max_iterations=500):
+    # Increase allowed search budget for larger maps and longer paths.
+    map_area = len(map_data) * len(map_data[0]) if map_data and map_data[0] else 0
+    max_iterations = max(max_iterations, map_area * 5, 3000)
+
     # Convert start and goal to grid positions first
     start_grid = (int(round(start_pos[0] / TILESIZE)), int(round(start_pos[1] / TILESIZE)))
     goal_grid = (int(round(goal_pos[0] / TILESIZE)), int(round(goal_pos[1] / TILESIZE)))

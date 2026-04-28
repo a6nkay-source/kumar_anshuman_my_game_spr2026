@@ -31,6 +31,8 @@ class Game:
         self.theme_sound.play(-1) # Play music in a loop
         self.game_over_sound = pg.mixer.Sound(path.join(self.audio_dir, 'game_over.wav')) # Load game over sound
         self.game_over_sound.set_volume(0.7) # Set game over sound volume
+        self.coin_sound = pg.mixer.Sound(path.join(self.audio_dir, 'coin.wav')) # Load coin pickup sound
+        self.coin_sound.set_volume(0.7) # Set coin sound volume
         self.victory_sound = pg.mixer.Sound(path.join(self.audio_dir, 'rap.wav')) # Load victory rap sound
         self.victory_sound.set_volume(0.7) # Set victory sound volume
     def handle_home_input(self, event):
@@ -162,8 +164,8 @@ class Game:
         
         # Collisions
         if pg.sprite.spritecollide(self.player, self.cores, True): # Collect core and remove it from the game
-            pass 
-            
+            self.coin_sound.play()
+
         if pg.sprite.spritecollide(self.player, self.enemies, False) and self.collision_timer <= 0: # If player hits an enemy and not in collision 
             # Game over on contact with enemy
             self.state = 'game_over'
