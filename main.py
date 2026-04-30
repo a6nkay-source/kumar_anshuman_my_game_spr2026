@@ -17,6 +17,8 @@ class Game:
         self.level_index = 0
         self.difficulty = "NORMAL" # Default difficulty
         self.enemy_mult = 1.0 # Multiplier for enemy speed 
+        self.lives = 3  # Player lives
+        self.life_loss_timer = 0.0  # Timer for the life lost animation
         self.collision_timer = 0  # Timer for collision particle effect
         self.screen_shake = 0 # Timer for screen shake effect
         self.paused = False  # Pause state for the game
@@ -45,15 +47,13 @@ class Game:
         if event.key == pg.K_3:
             self.difficulty = "HARD"# Set difficulty to hard and apply enemy speed multiplier
             self.enemy_mult = 1.5
-        if event.key == pg.K_UP:
-            self.level_index = (self.level_index + 1) % len(MAPS)
-        if event.key == pg.K_DOWN:
-            self.level_index = (self.level_index - 1) % len(MAPS)
         if event.key == pg.K_SPACE:
             self.state = 'playing'
+            self.level_index = 0
+            self.lives = 3
             self.load_level()
             self.level_start_time = pg.time.get_ticks()
-            self.time_left = 100.0
+            self.time_left = 120.0
 # This home screen was a reference from the Kids Can Code tutorial on making a platformer, but I heavily modified it to fit the theme of Neon Escape.
     def show_home_screen(self):
         self.screen.fill(MAGENTA) 
@@ -70,9 +70,9 @@ class Game:
         self.draw_text_centered(f" {self.difficulty} ", 35, diff_color, y_offset + 40) # Highlight selected difficulty
         self.draw_text_centered("1 EASY  2 NORMAL  3 HARD", 16, DARK_GRAY, y_offset + 80) # Instructions for difficulty selection
 
-        # Level Visulas
-        self.draw_text_centered(f"STARTING LEVEL: {self.level_index + 1}", 20, WHITE, y_offset + 140)
-        self.draw_text_centered("USE UP / DOWN KEYS", 16, DARK_GRAY, y_offset + 170)
+        # Level Visuals
+        self.draw_text_centered("STARTING LEVEL: 1", 20, WHITE, y_offset + 140) # Display the starting level
+        self.draw_text_centered("COMPLETE ALL LEVELS IN 120s", 16, DARK_GRAY, y_offset + 170) # Instructions for level completion
         
         # Start Text
         alpha = 150 + (105 * (pg.time.get_ticks() % 1000 > 500)) 
@@ -149,6 +149,9 @@ class Game:
             self.collision_timer -= self.dt * 1000  # Decrease timer
             if self.collision_timer <= 0:
                 self.load_level()  # Reset level after particle effect
+
+        if self.life_loss_timer > 0:
+            self.life_loss_timer = max(0, self.life_loss_timer - self.dt) # Decrease the life loss timer
         
         # Game timer countdown
         if self.level_start_time is not None:
@@ -167,14 +170,18 @@ class Game:
             self.coin_sound.play()
 
         if pg.sprite.spritecollide(self.player, self.enemies, False) and self.collision_timer <= 0: # If player hits an enemy and not in collision 
-            # Game over on contact with enemy
-            self.state = 'game_over'
-            self.game_over_reason = 'enemy'
-            self.theme_sound.stop()  # Stop the background music
-            self.game_over_sound.play()  # Play the game over sound
-            # Create game over particles
-            self.all_sprites = pg.sprite.Group()  # Clear sprites for game over animation
-            return
+            self.lives -= 1
+            self.life_loss_timer = 1.8
+            if self.lives <= 0:
+                self.state = 'game_over'
+                self.game_over_reason = 'enemy'
+                self.theme_sound.stop()  # Stop the background music
+                self.game_over_sound.play()  # Play the game over sound
+                self.all_sprites = pg.sprite.Group()  # Clear sprites for game over animation
+                return
+            else:
+                self.load_level()  # Restart the current level with remaining time
+                return
 
         if len(self.cores) == 0: 
             # Change portal color to show it's active
@@ -218,6 +225,10 @@ class Game:
         self.draw_text(f"CORES: {len(self.cores)}", 20, WHITE, 10 + shake_offset[0], 35 + shake_offset[1]) # Cores remaining
         self.draw_text(f"TIME: {self.time_left:.1f}s", 20, WHITE, WIDTH // 4 - 70 + shake_offset[0], 10 + shake_offset[1]) # Timer indicator
         self.draw_text(f"MODE: {self.difficulty}", 20, WHITE, WIDTH - 150 + shake_offset[0], 35 + shake_offset[1]) # Difficulty indicator
+        self.draw_text(f"LIVES: {' '.join(['X'] * self.lives)}", 20, RED, WIDTH - 220 + shake_offset[0], HEIGHT - 35 + shake_offset[1])
+
+        if self.life_loss_timer > 0:
+            self.draw_life_loss_animation(shake_offset)
         
         # Draw dash cooldown timer at the top center
         self.draw_cooldown_timer(shake_offset)
@@ -285,7 +296,10 @@ class Game:
         # Restart instruction
         alpha = 150 + (105 * (pg.time.get_ticks() % 1000 > 500))  # This is to flash the particles
         restart_color = (alpha, alpha, alpha)
-        self.draw_text_centered("PRESS R TO RETURN TO MENU", 24, restart_color, HEIGHT - 100) # Instruction to return to menu
+        if self.game_over_reason == 'timeout':
+            self.draw_text_centered("PRESS R TO RETURN TO MENU", 24, restart_color, HEIGHT - 100)
+        else:
+            self.draw_text_centered("PRESS R TO RESTART LEVEL", 24, restart_color, HEIGHT - 100)
         
         pg.display.flip()
 
@@ -343,6 +357,16 @@ class Game:
         surf = font.render(text, True, color)
         self.screen.blit(surf, (x, y)) # Draw text at a specific position
 
+    def draw_life_loss_animation(self, shake_offset=(0, 0)):
+        alpha = int(255 * (self.life_loss_timer / 1.8))
+        message = "1 LIFE GONE"
+        font = pg.font.SysFont('Times New Roman', 24, bold=True) # This create a font for the text
+        surf = font.render(message, True, YELLOW)
+        surf.set_alpha(alpha)
+        x = WIDTH // 2 - surf.get_width() // 2 + shake_offset[0] # Adjust teh x position
+        y = HEIGHT // 2 - 80 - int((2 - self.life_loss_timer) * 30) # Adjust the y position
+        self.screen.blit(surf, (x, y))
+
     def draw_cooldown_timer(self, shake_offset=(0, 0)): # This draws the dash cooldown timer.
         # Calculate cooldown progress
         now = pg.time.get_ticks()
@@ -353,7 +377,7 @@ class Game:
         # Timer bar dimensions
         bar_width = 200 # Width of the cooldown bar
         bar_height = 20 # Height of the cooldown bar
-        bar_x = (WIDTH // 2) - (bar_width // 2) + shake_offset[0] # Center the bar at the top of the screen with shake offset
+        bar_x = (WIDTH // 2) - (bar_width // 2) + shake_offset[0] # Center teh bar at the top of the screen with shake offset
         bar_y = 10 + shake_offset[1]
         
         # Draw background bar (cooldown state)
@@ -400,6 +424,9 @@ class Game:
                     elif self.state == 'game_over':
                         if event.key == pg.K_r:
                             self.state = 'home'
+                            self.level_index = 0
+                            self.lives = 3
+                            self.time_left = 120.0
                             self.game_over_sound.stop()  # Stop the game over sound
                             self.theme_sound.play(-1)  # Play the theme music in a loop
                             self.game_over_reason = None

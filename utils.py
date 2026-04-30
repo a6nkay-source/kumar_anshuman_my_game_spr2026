@@ -55,80 +55,76 @@ def astar_pathfind(start_pos, goal_pos, map_data, max_iterations=500):
     map_area = len(map_data) * len(map_data[0]) if map_data and map_data[0] else 0
     max_iterations = max(max_iterations, map_area * 5, 3000)
 
-    # Convert start and goal to grid positions first
-    start_grid = (int(round(start_pos[0] / TILESIZE)), int(round(start_pos[1] / TILESIZE)))
-    goal_grid = (int(round(goal_pos[0] / TILESIZE)), int(round(goal_pos[1] / TILESIZE)))
-    
+    # Convert start and goal to grid positions using tile coordinates.
+    start_grid = (int(start_pos[0] // TILESIZE), int(start_pos[1] // TILESIZE))
+    goal_grid = (int(goal_pos[0] // TILESIZE), int(goal_pos[1] // TILESIZE))
+
     # If already at goal or too close, no path needed
     if start_grid == goal_grid:
         return []
-    
-    # Check bounds for goal
+
+    # Check bounds for start and goal
+    if not (0 <= start_grid[0] < len(map_data[0]) and 0 <= start_grid[1] < len(map_data)):
+        return []
     if not (0 <= goal_grid[0] < len(map_data[0]) and 0 <= goal_grid[1] < len(map_data)):
         return []
-    
-    # Check if goal is walkable
+
+    # If the start or goal is on a wall, try to find the nearest walkable tile.
+    if map_data[start_grid[1]][start_grid[0]] == '1': # If the start position is on a wall
+        for dx in range(-1, 2): # This check the surroundings
+            for dy in range(-1, 2): # Check the range of surroundings
+                nx, ny = start_grid[0] + dx, start_grid[1] + dy # Calculate the new position
+                if 0 <= nx < len(map_data[0]) and 0 <= ny < len(map_data) and map_data[ny][nx] != '1': # Checks if the new position is within the map and not a wall
+                    start_grid = (nx, ny)
+                    break
+
     if map_data[goal_grid[1]][goal_grid[0]] == '1':
-        # Try to find nearest walkable tile to goal
         for dx in range(-2, 3):
             for dy in range(-2, 3):
                 nx, ny = goal_grid[0] + dx, goal_grid[1] + dy
                 if 0 <= nx < len(map_data[0]) and 0 <= ny < len(map_data) and map_data[ny][nx] != '1':
                     goal_grid = (nx, ny)
                     break
-    
+
     open_list = []
     closed_set = set()
-    open_set = set()  # For O(1) lookup
-    
+    best_cost = {start_grid: 0}
+
     start_node = Node(start_grid, 0, heuristic(start_grid, goal_grid))
     heapq.heappush(open_list, start_node)
-    open_set.add(start_grid)
-    
+
     iterations = 0
     while open_list and iterations < max_iterations:
         iterations += 1
         current = heapq.heappop(open_list)
-        open_set.discard(current.pos)
-        
+
+        if current.pos in closed_set:
+            continue
+
         if current.pos == goal_grid:
-            # Reconstruct path
             path = []
             node = current
             while node:
                 path.append(node.pos)
                 node = node.parent
             path.reverse()
-            # Convert back to pixel coordinates (tile center), exclude start position
-            pixel_path = [(x * TILESIZE + TILESIZE // 2, y * TILESIZE + TILESIZE // 2) for x, y in path[1:]]
-            return pixel_path
-        
+            return [(x * TILESIZE + TILESIZE // 2, y * TILESIZE + TILESIZE // 2) for x, y in path[1:]]
+
         closed_set.add(current.pos)
-        
+
         for neighbor_pos in get_neighbors(current.pos, map_data):
             if neighbor_pos in closed_set:
                 continue
-            
+
             g_cost = current.g_cost + 1
+            if neighbor_pos in best_cost and g_cost >= best_cost[neighbor_pos]:
+                continue
+
+            best_cost[neighbor_pos] = g_cost
             h_cost = heuristic(neighbor_pos, goal_grid)
-            
             neighbor = Node(neighbor_pos, g_cost, h_cost, parent=current)
-            
-            # Check if this node is already in open_list with higher cost
-            if neighbor_pos in open_set:
-                # Find and update if better path found
-                for node in open_list:
-                    if node.pos == neighbor_pos and g_cost < node.g_cost:
-                        node.g_cost = g_cost
-                        node.parent = current
-                        heapq.heapify(open_list)
-                        break
-            else:
-                heapq.heappush(open_list, neighbor)
-                open_set.add(neighbor_pos)
-    
+            heapq.heappush(open_list, neighbor)
+
     return []  # No path found
 # Health bar function used to draw it
-
-    return False
 
