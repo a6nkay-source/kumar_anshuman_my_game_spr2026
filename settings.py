@@ -19,6 +19,7 @@ RED = (255, 50, 50)
 DARK_GRAY = (40, 40, 50)
 GREEN = (50, 255, 50)
 BLACK = (0, 0, 0)
+ORANGE = (255, 165, 0)
 
 script_dir = path.dirname(__file__)
 # Map Files
