@@ -7,6 +7,7 @@ from os import path # Import path for file handling
 from math import cos, sin # Import trigonometric functions for fireworks
 import sys # Import sys for exiting the game
 
+# Mian Game class
 class Game:
     def __init__(self):
         pg.init() # Initialize all imported pygame modules
@@ -22,18 +23,29 @@ class Game:
         self.collision_timer = 0  # Timer for collision particle effect
         self.screen_shake = 0 # Timer for screen shake effect
         self.paused = False  # Pause state for the game
-        self.state = 'home'  # Game state: 'home', 'playing', 'game_over'
+        self.state = 'intro'  # Game state: 'intro', 'rules_settings', 'playing', 'game_over'
         self.time_left = 100.0  # Time remaining for the whole game
         self.level_time_limit = 120.0  # Time limit for the current game session
-        self.home_time_input = "120"  # Time input shown on the home screen
+        self.time_options = [30, 60, 90, 120]  # Allowed home screen time options
+        self.home_time_index = 3  # Default selected time option is 120 seconds
         self.level_start_time = None  # Start time for the timer
         self.game_over_reason = None  # Reason for game over: 'enemy' or 'timeout'
         self.love_timer = 0.0  # Timer for playing love sound every 30 seconds
-        pg.mixer.init()
+        self.explosion_active = False  # Whether the bomb explosion effect is active
+        self.explosion_end_time = 0
+        self.explosion_particles = pg.sprite.Group()
+        self.muted = False  # Whether audio is muted
+        self.mute_button_rect = pg.Rect(WIDTH - 120, 10, 110, 32)  # Mute button hit area
+        # Intro slide variables
+        self.intro_text = "Welcome to Neon Escape! A thrilling adventure where you must collect energy cores while avoiding enemies and deadly bombs. Navigate through neon-lit levels, master your dash ability, and survive against the clock!"
+        self.typing_index = 0
+        self.typing_timer = 0.0
+        self.typing_speed = 0.05  # Seconds per character
+        self.next_button_rect = pg.Rect(WIDTH // 2 - 50, HEIGHT - 100, 100, 40)  # Next button
+        pg.mixer.init() # This is the mixer for the sound effects
         self.audio_dir = path.join(self.game_folder, 'audio')  # Directory containing audio files
         self.theme_sound = pg.mixer.Sound(path.join(self.audio_dir, 'theme_music (2).wav')) # Load background music
         self.theme_sound.set_volume(0.5) # Set music volume
-        self.theme_sound.play(-1) # Play music in a loop
         self.game_over_sound = pg.mixer.Sound(path.join(self.audio_dir, 'game_over.wav')) # Load game over sound
         self.game_over_sound.set_volume(0.7) # Set game over sound volume
         self.coin_sound = pg.mixer.Sound(path.join(self.audio_dir, 'coin.wav')) # Load coin pickup sound
@@ -44,62 +56,76 @@ class Game:
         self.lose_sound.set_volume(0.7) # Set lose sound volume
         self.love_sound = pg.mixer.Sound(path.join(self.audio_dir, 'love.wav')) # Load love sound
         self.love_sound.set_volume(0.7) # Set love sound volume
-    def handle_home_input(self, event):
-        if event.key == pg.K_BACKSPACE: # Handle backspace to delete last character 
-            self.home_time_input = self.home_time_input[:-1]
-            return
-        elif event.unicode.isdigit():  # handle numeric input for time limit
-            if len(self.home_time_input) < 4: # Limit the input to 4 units
-                self.home_time_input = (self.home_time_input + event.unicode).lstrip('0') or event.unicode # This is to add new inputs
-        elif event.key == pg.K_RETURN or event.key == pg.K_KP_ENTER: # Start the game when enter is pressed
-            self.start_game()
-            return
+        self.sound_volumes = {
+            self.theme_sound: 0.5, # This is to store the original volumes
+            self.game_over_sound: 0.7, # This is to store the original volumes
+            self.coin_sound: 0.7, # This is to store the original volumes 
+            self.victory_sound: 0.7, # This is to store the original volumes
+            self.lose_sound: 0.7, # This is to store the original volumes
+            self.love_sound: 0.7, # This is to store the original volumes
+        }
+        self.set_mute(self.muted)
+        if not self.muted:
+            self.theme_sound.play(-1) # Play music in a loop
+    def handle_rules_settings_input(self, event):
+        if event.key == pg.K_RETURN or event.key == pg.K_KP_ENTER or event.key == pg.K_SPACE: # Start the game when enter or space is pressed
+            self.start_game() # Start the game when enter or space is pressed
+            return # Return to avoid processing other inputs on the same key press
+
         difficulties = ["EASY", "NORMAL", "HARD"]
         speeds = {"EASY": 0.7, "NORMAL": 1.0, "HARD": 1.5}
-        if event.key in (pg.K_LEFT, pg.K_UP):
+        if event.key in (pg.K_LEFT, pg.K_RIGHT):
             current_index = difficulties.index(self.difficulty)
-            self.difficulty = difficulties[(current_index - 1) % len(difficulties)]
+            direction = -1 if event.key == pg.K_LEFT else 1
+            self.difficulty = difficulties[(current_index + direction) % len(difficulties)]
             self.enemy_mult = speeds[self.difficulty]
             return
-        if event.key in (pg.K_RIGHT, pg.K_DOWN):
-            current_index = difficulties.index(self.difficulty)
-            self.difficulty = difficulties[(current_index + 1) % len(difficulties)]
-            self.enemy_mult = speeds[self.difficulty]
+        if event.key in (pg.K_UP, pg.K_DOWN):
+            direction = -1 if event.key == pg.K_UP else 1 
+            self.home_time_index = (self.home_time_index + direction) % len(self.time_options)
             return
-        if event.key == pg.K_SPACE:
-            self.start_game()
-# This home screen was a reference from the Kids Can Code tutorial on making a platformer, but I heavily modified it to fit the theme of Neon Escape.
-    def show_home_screen(self):
+# This rules and settings screen was a reference from the Kids Can Code tutorial on making a platformer, but I heavily modified it to fit the theme of Neon Escape.
+    def show_rules_settings_screen(self):
         self.screen.fill(MAGENTA) 
         
-        self.draw_text_centered("NEON ESCAPE", 80, BLACK, HEIGHT // 4)
-        self.draw_text_centered("Presented by Anshuman Kumar", 24 , DARK_GRAY, HEIGHT // 4 + 60) 
+        self.draw_text_centered("NEON ESCAPE", 70, BLACK, HEIGHT // 4)
+        self.draw_text_centered("Presented By Anshuman Kumar", 20 , DARK_GRAY, HEIGHT // 4 + 50) 
         
+        # Rules
+        rules_y = HEIGHT // 4 + 100
+        self.draw_text_centered("RULES:", 25, WHITE, rules_y)
+        self.draw_text_centered("Collect all energy cores to activate the portal.", 16, DARK_GRAY, rules_y + 35) # This is the first rule for the game 
+        self.draw_text_centered("Avoid enemies and bombs - they cost lives!", 16, DARK_GRAY, rules_y + 60) # This is the second rule for the game
+        self.draw_text_centered("Use WASD or Arrow keys to move, Space to dash.", 16, DARK_GRAY, rules_y + 85) # This is the third rule for the game
+        self.draw_text_centered("Complete all levels before time runs out.", 16, DARK_GRAY, rules_y + 110) # This is the fourth rule for the game
         
-        y_offset = HEIGHT // 2 - 30
+        y_offset = HEIGHT // 2 + 80 # This is the y offset for the difficulty and time selection 
         
         # Difficulty Logic Visuals
         diff_color = GREEN if self.difficulty == "EASY" else (YELLOW if self.difficulty == "NORMAL" else RED)
-        self.draw_text_centered("SELECT DIFFICULTY", 20, WHITE, y_offset)
-        self.draw_text_centered(f" {self.difficulty} ", 35, diff_color, y_offset + 45)
-        self.draw_text_centered("USE ARROW KEYS TO CHANGE DIFFICULTY", 16, DARK_GRAY, y_offset + 90)
+        self.draw_text_centered("SELECT DIFFICULTY", 18, WHITE, y_offset) # This is the text for the difficulty selection
+        self.draw_text_centered(f" {self.difficulty} ", 30, diff_color, y_offset + 40) # This is the text for the selected difficulty with a color change based on the difficulty
+        self.draw_text_centered("USE LEFT/RIGHT TO CHANGE DIFFICULTY", 14, DARK_GRAY, y_offset + 80)
 
-        # Level Visuals
-        self.draw_text_centered("STARTING LEVEL: 1", 20, WHITE, y_offset + 150)
-        self.draw_text_centered(f"COMPLETE ALL LEVELS IN {self.home_time_input or '120'}s", 16, DARK_GRAY, y_offset + 185)
-        input_text = f"{self.home_time_input or '120'}s"
-        input_font = pg.font.SysFont('Copperplate Gothic', 28, bold=True)
-        input_surf = input_font.render(input_text, True, WHITE)
-        input_rect = input_surf.get_rect(center=(WIDTH // 2, y_offset + 270))
-        pg.draw.rect(self.screen, RED, input_rect.inflate(32, 22), border_radius=8)
+        # Time Selection Logic
+        selected_time = self.time_options[self.home_time_index]
+        self.draw_text_centered(f"{selected_time}s", 30, WHITE, y_offset + 160) # This is the text for the selected time
+        self.draw_text_centered("USE UP/DOWN TO CHANGE TIME", 14, DARK_GRAY, y_offset + 200) # This is the text for the time selection instructions
+
+        
+        self.draw_text_centered(f"COMPLETE ALL LEVELS IN {selected_time}s", 14, DARK_GRAY, y_offset + 275)
+        input_text = f"{selected_time}s"
+        input_font = pg.font.SysFont('Copperplate Gothic', 24, bold=True) # This is for the font
+        input_surf = input_font.render(input_text, True, WHITE) # This is to render the text for the selected time
+        input_rect = input_surf.get_rect(center=(WIDTH // 2, y_offset + 320))
+        pg.draw.rect(self.screen, RED, input_rect.inflate(32, 22), border_radius=8) # This is to draw a red rectangle
         self.screen.blit(input_surf, input_rect)
-        self.draw_text_centered("TYPE THE TIME YOU WANT", 18, DARK_GRAY, y_offset + 315)
         
         # Start Text
         alpha = 150 + (105 * (pg.time.get_ticks() % 1000 > 500))
         start_color = (alpha, alpha, alpha)
-        self.draw_text_centered("PRESS SPACE TO START", 24, start_color, HEIGHT - 120)
-        
+        self.draw_text_centered("PRESS SPACE TO START", 20, start_color, HEIGHT - 100)
+        self.draw_mute_button()
         pg.display.flip()
 
     def draw_text_centered(self, text, size, color, y):
@@ -108,11 +134,63 @@ class Game:
         rect = surf.get_rect(center=(WIDTH // 2, y))
         self.screen.blit(surf, rect)
 
+    def handle_intro_input(self, event):
+        if event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+            if self.next_button_rect.collidepoint(event.pos):
+                self.state = 'rules_settings'
+        elif event.key == pg.K_SPACE or event.key == pg.K_RETURN:
+            self.state = 'rules_settings'
+
+    def show_intro_screen(self):
+        self.screen.fill(MAGENTA)
+        
+        # Update typing animation
+        self.typing_timer += self.dt
+        if self.typing_timer >= self.typing_speed and self.typing_index < len(self.intro_text): # This is to update the typing animation by increasing the index of the text to be displayed based on the typing speed
+            self.typing_index += 1 # This is to increase the index of the text to be displayed
+            self.typing_timer = 0.0 # This is to reset the typing timer after updating the text
+        
+        # Draw title
+        self.draw_text_centered("NEON ESCAPE", 80, BLACK, HEIGHT // 4) # This is the title for the intro screen
+        
+        # Draw typed text
+        current_text = self.intro_text[:self.typing_index] # This is to get the current text to be displayed based on the typing index
+        font = pg.font.SysFont('Copperplate Gothic', 20, bold=True)
+        lines = []
+        words = current_text.split()
+        current_line = ""
+        for word in words:
+            test_line = current_line + " " + word if current_line else word
+            if font.size(test_line)[0] < WIDTH - 100:
+                current_line = test_line
+            else:
+                lines.append(current_line)
+                current_line = word
+        if current_line:
+            lines.append(current_line)
+        
+        y_start = HEIGHT // 2 - 50
+        for i, line in enumerate(lines):
+            surf = font.render(line, True, WHITE)
+            rect = surf.get_rect(center=(WIDTH // 2, y_start + i * 30))
+            self.screen.blit(surf, rect)
+        
+        # Draw next button
+        pg.draw.rect(self.screen, GREEN, self.next_button_rect, border_radius=8)
+        font = pg.font.SysFont('Copperplate Gothic', 20, bold=True)
+        surf = font.render(">", True, WHITE) # This is the text for the next button
+        rect = surf.get_rect(center=self.next_button_rect.center)
+        self.screen.blit(surf, rect)
+        
+        self.draw_mute_button()
+        pg.display.flip()
+
     def load_level(self):
         self.all_sprites = pg.sprite.Group()# Group to hold all sprites for easy updating and drawing
         self.walls = pg.sprite.Group() # Group to hold wall sprites for collision detection
         self.enemies = pg.sprite.Group() # Group to hold enemy sprites for collision detection
         self.cores = pg.sprite.Group() # Group to hold energy core sprites for collection
+        self.bombs = pg.sprite.Group() # Group to hold bomb sprites for map 1
         self.portals = pg.sprite.Group() # Group to hold portal sprites for level exit
         self.teleporters = pg.sprite.Group() # Group to hold blue teleport portals
         self.collision_timer = 0  # Reset collision timer
@@ -130,6 +208,7 @@ class Game:
                     m = Enemy(self, col, row) # Create enemy here
                     m.speed = ENEMY_SPEED * self.enemy_mult # Apply difficulty multiplier
                 if tile == 'C': EnergyCore(self, col, row) # Create energy core here
+                if tile == 'X': Bomb(self, col, row) # Create bomb on level 1 only
                 if tile == 'E': self.exit_node = Portal(self, col, row) # Create portal here
                 if tile == 'B': TeleportPortal(self, col, row) # Create blue teleport portal here
         
@@ -146,13 +225,20 @@ class Game:
         self.state = 'playing'
         self.level_index = 0
         self.lives = 3
-        self.load_level()
+        self.load_level() # Load the first level
         self.level_start_time = pg.time.get_ticks()
-        try: # If the input of user invalid set it to 120 as default value
-            self.level_time_limit = max(1.0, float(self.home_time_input or '120'))
-        except ValueError:
-            self.level_time_limit = 120.0
+        self.level_time_limit = float(self.time_options[self.home_time_index])
         self.time_left = self.level_time_limit
+        self.explosion_active = False
+        self.explosion_particles.empty()
+
+    def trigger_bomb_explosion(self):
+        self.explosion_active = True
+        self.explosion_end_time = pg.time.get_ticks() + 5000
+        for _ in range(200):
+            x = randint(0, WIDTH)
+            y = randint(0, HEIGHT)
+            ExplosionParticle(self, x, y)
 
     def update(self):
         # Skip update if game is paused
@@ -160,6 +246,7 @@ class Game:
             return
         
         self.all_sprites.update()
+        self.explosion_particles.update()
         self.camera.update(self.player)# Update camera to follow player
 
         # Handle blue teleport portals
@@ -186,6 +273,10 @@ class Game:
 
         if self.life_loss_timer > 0:
             self.life_loss_timer = max(0, self.life_loss_timer - self.dt) # Decrease the life loss timer
+
+        if self.explosion_active and pg.time.get_ticks() >= self.explosion_end_time:
+            self.explosion_active = False
+            self.explosion_particles.empty()
         
         # Game timer countdown
         if self.level_start_time is not None:
@@ -209,9 +300,28 @@ class Game:
         if pg.sprite.spritecollide(self.player, self.cores, True): # Collect core and remove it from the game
             self.coin_sound.play()
 
+        if self.level_index == 0 and pg.sprite.spritecollide(self.player, self.bombs, False) and self.collision_timer <= 0:
+            self.trigger_bomb_explosion()
+            self.lose_sound.play()
+            self.lives -= 1
+            self.collision_timer = 2000
+            self.life_loss_timer = 1.8
+            if self.lives <= 0:
+                self.state = 'game_over'
+                self.game_over_reason = 'bomb'
+                self.theme_sound.stop()
+                self.game_over_sound.play()
+                self.all_sprites = pg.sprite.Group()
+                return
+            else:
+                self.load_level()
+                self.camera.update(self.player)
+                return
+
         if pg.sprite.spritecollide(self.player, self.enemies, False) and self.collision_timer <= 0: # If player hits an enemy and not in collision 
             self.lose_sound.play() # Play the lose life sound effect
             self.lives -= 1
+            self.collision_timer = 2000
             self.life_loss_timer = 1.8 # This starts the loss life animation
             if self.lives <= 0:
                 self.state = 'game_over' # Set the game start over
@@ -259,6 +369,9 @@ class Game:
             sprite_pos = self.camera.apply(sprite)
             self.screen.blit(sprite.image, (sprite_pos.x + shake_offset[0], sprite_pos.y + shake_offset[1]))
         
+        for particle in self.explosion_particles:
+            self.screen.blit(particle.image, particle.rect)
+        
         # Apply flashlight effect for level 3 (index 2)
         if self.level_index == 2:
             self.draw_flashlight(shake_offset)
@@ -287,9 +400,9 @@ class Game:
             # Pause text
             self.draw_text_centered("PAUSED", 60, GREEN, HEIGHT // 2 - 40)
             self.draw_text_centered("Press P to Resume", 24, WHITE, HEIGHT // 2 + 40) # This is the button to resume the game.
-        
+        self.draw_mute_button()
         pg.display.flip()
-
+# This is for level 3 to create a flashlight effet
     def draw_flashlight(self, shake_offset=(0, 0)):
         # Get player position on screen (account for camera)
         player_screen_pos = self.camera.apply(self.player)
@@ -313,7 +426,7 @@ class Game:
         self.screen.blit(dark_overlay, (0, 0))
 
     def draw_game_over(self):
-        self.screen.fill(BLACK)
+        self.screen.fill(BLACK) # Fill the background with black for the game over screen
         
         # Create game over particles for animation if not already created
         if not hasattr(self, 'game_over_started'):
@@ -331,8 +444,10 @@ class Game:
         
         # Game Over text
         self.draw_text_centered("GAME OVER", 80, RED, HEIGHT // 3)
-        if self.game_over_reason == 'timeout':
-            self.draw_text_centered("Time has run out!", 24, RED, HEIGHT // 3 + 60)
+        if self.game_over_reason == 'timeout': # This is the message for when the player runs out of time
+            self.draw_text_centered("Time has run out!", 24, RED, HEIGHT // 3 + 60) # This is an additional message
+        elif self.game_over_reason == 'bomb': # This is the message for when the player hits a bomb
+            self.draw_text_centered("You touched a bomb!", 24, RED, HEIGHT // 3 + 60)
         else:
             self.draw_text_centered("You were caught by the enemy!", 24, RED, HEIGHT // 3 + 60) # This is an additional message when caught by the enemy 
         
@@ -340,8 +455,8 @@ class Game:
         alpha = 150 + (105 * (pg.time.get_ticks() % 1000 > 500))  # This is to flash the particles
         restart_color = (alpha, alpha, alpha)
         if self.game_over_reason == 'timeout':
-            self.draw_text_centered("PRESS R TO RETURN TO MENU", 24, restart_color, HEIGHT - 100)
-        else:
+            self.draw_text_centered("PRESS R TO RETURN TO MENU", 24, restart_color, HEIGHT - 100) # This is the instruction for restarting after timeout
+        else: # This is the message for when the player can restart after being caught by the enemy or hitting a bomb
             self.draw_text_centered("PRESS R TO RESTART LEVEL", 24, restart_color, HEIGHT - 100)
         
         pg.display.flip()
@@ -392,13 +507,32 @@ class Game:
             alpha = 150 + (105 * (pg.time.get_ticks() % 1000 > 500))
             return_color = (alpha, alpha, alpha)
             self.draw_text_centered("PRESS R TO RETURN TO MENU", 24, return_color, HEIGHT - 100) 
-        
+        self.draw_mute_button()
         pg.display.flip()
 
     def draw_text(self, text, size, color, x, y):
         font = pg.font.SysFont('Copperplate Gothic', size, bold=True) # This creates a font object 
         surf = font.render(text, True, color)
         self.screen.blit(surf, (x, y)) # Draw text at a specific position
+
+    def draw_mute_button(self):
+        button_color = RED if self.muted else GREEN
+        pg.draw.rect(self.screen, button_color, self.mute_button_rect, border_radius=8)
+        label = "UNMUTE" if self.muted else "MUTE"
+        font = pg.font.SysFont('Copperplate Gothic', 16, bold=True)
+        surf = font.render(label, True, WHITE)
+        rect = surf.get_rect(center=self.mute_button_rect.center)
+        self.screen.blit(surf, rect)
+
+    def set_mute(self, muted: bool):
+        self.muted = muted
+        for sound, volume in self.sound_volumes.items():
+            sound.set_volume(0.0 if self.muted else volume)
+
+    def toggle_mute(self):
+        self.set_mute(not self.muted)
+        if not self.muted and self.state in ['rules_settings', 'playing'] and self.theme_sound.get_num_channels() == 0:
+            self.theme_sound.play(-1)
 
     def draw_life_loss_animation(self, shake_offset=(0, 0)):
         alpha = int(255 * (self.life_loss_timer / 1.8))
@@ -458,15 +592,22 @@ class Game:
                 if event.type == pg.QUIT: 
                     pg.quit()
                     sys.exit()
-                if event.type == pg.KEYDOWN:
-                    if self.state == 'home':
-                        self.handle_home_input(event) # Handle input for home screen
+                elif event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+                    if self.mute_button_rect.collidepoint(event.pos):
+                        self.toggle_mute()
+                    elif self.state == 'intro':
+                        self.handle_intro_input(event)
+                elif event.type == pg.KEYDOWN:
+                    if self.state == 'rules_settings':
+                        self.handle_rules_settings_input(event) # Handle input for rules and settings screen
+                    elif self.state == 'intro':
+                        self.handle_intro_input(event) # Handle input for intro screen
                     elif self.state == 'playing':
                         if event.key == pg.K_p:  # Toggle pause on 'P' key press
                             self.paused = not self.paused
                     elif self.state == 'game_over':
                         if event.key == pg.K_r:
-                            self.state = 'home'
+                            self.state = 'rules_settings'
                             self.level_index = 0
                             self.lives = 3
                             self.time_left = 120.0
@@ -477,7 +618,7 @@ class Game:
                                 delattr(self, 'game_over_started') # This is made to allow particles ot be created again.
                     elif self.state == 'victory':
                         if event.key == pg.K_r:
-                            self.state = 'home'
+                            self.state = 'rules_settings'
                             self.level_index = 0  # Reset level index for next playthrough
                             self.theme_sound.play(-1)  # Play the theme music in a loop
                             self.victory_sound.stop()  # Stop the victory rap sound
@@ -485,8 +626,10 @@ class Game:
                                 delattr(self, 'victory_start_time') # This is made to allow particles to be created again.
                             if hasattr(self, 'last_wave_time'):
                                 delattr(self, 'last_wave_time')
-            if self.state == 'home': # Show home screen in the home state.
-                self.show_home_screen()
+            if self.state == 'intro': # Show intro screen
+                self.show_intro_screen()
+            elif self.state == 'rules_settings': # Show rules and settings screen
+                self.show_rules_settings_screen()
             elif self.state == 'playing':
                 self.update() # Update game Logic 
                 self.draw() # Draw everything on the screen

@@ -190,6 +190,17 @@ class EnergyCore(pg.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = (x * TILESIZE + 16, y * TILESIZE + 16)
 
+class Bomb(pg.sprite.Sprite):
+    def __init__(self, game, x, y):
+        self.groups = game.all_sprites, game.bombs
+        pg.sprite.Sprite.__init__(self, self.groups)
+        self.game = game
+        self.image = pg.Surface((20, 20), pg.SRCALPHA)
+        draw_pixel_rect(self.image, RED, self.image.get_rect()) # Draw the bomb 
+        pg.draw.circle(self.image, BLACK, (10, 10), 6, 2) # Added a circle on the bomb
+        self.rect = self.image.get_rect() # center the bomb
+        self.rect.center = (x * TILESIZE + TILESIZE // 2, y * TILESIZE + TILESIZE // 2) # Center the bomb
+
 class Portal(pg.sprite.Sprite):
     def __init__(self, game, x, y):
         self.groups = game.all_sprites, game.portals
@@ -247,3 +258,28 @@ class Particle(pg.sprite.Sprite):
             # Calculate alpha from remaining life
             alpha = int((self.life / self.max_life) * 255)
             self.image.set_alpha(alpha)
+
+class ExplosionParticle(pg.sprite.Sprite):
+    def __init__(self, game, x, y):
+        self.groups = game.explosion_particles
+        pg.sprite.Sprite.__init__(self, self.groups)
+        self.game = game
+        size = randint(4, 12) # Randome size for the explosion particles
+        self.image = pg.Surface((size, size), pg.SRCALPHA) # Create a small surface with alpha for explosion particle effects
+        self.image.fill(RED) # Red fairy explosion effect
+        self.rect = self.image.get_rect() # Rect Used as teh position is needed
+        self.pos = pg.math.Vector2(x, y) # Center the explosion
+        self.rect.center = self.pos # Set the rect center
+        self.vel = pg.math.Vector2(uniform(-300, 300), uniform(-300, 300)) # Random velocity for the explosion
+        self.life = 5.0 # Life timer for explosion particles, they will last longer
+        self.max_life = 5.0 # Max life for explosion particles, used for fading out effect
+
+    def update(self):
+        self.pos += self.vel * self.game.dt # Move the explosion particle
+        self.rect.center = self.pos
+        self.life -= self.game.dt
+        if self.life <= 0:
+            self.kill()
+        else:
+            alpha = int((self.life / self.max_life) * 255)
+            self.image.set_alpha(alpha) # fade out the explosion particle over time
