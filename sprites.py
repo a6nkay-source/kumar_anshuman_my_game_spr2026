@@ -40,6 +40,8 @@ class Player(pg.sprite.Sprite):
         is_dashing = keys[pg.K_SPACE] and (now - self.last_dash < DASH_DURATION)
         if keys[pg.K_SPACE] and now - self.last_dash > DASH_COOLDOWN:
             self.last_dash = now
+            if hasattr(self.game, 'blaze_sound'):
+                self.game.blaze_sound.play()
 
         speed = PLAYER_SPEED * (DASH_SPEED_MULT if is_dashing else 1)
 

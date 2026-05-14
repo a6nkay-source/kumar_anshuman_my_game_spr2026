@@ -10,6 +10,8 @@ TILESIZE = 32
 # Colors (Neon Palette)
 BGCOLOR = (0, 128, 0) # Change background "
 DARK_GRAY = (40, 40, 50) # This is used for the Presented Title
+DARK_GREEN = (0, 100, 0) # This is used for the next button
+DARK_RED = (150, 0, 0) # This is used for the HARD mode
 WHITE = (220, 220, 255)
 CYAN = (0, 255, 255)
 MAGENTA = (255, 0, 255)

@@ -34,6 +34,7 @@ class Game:
         self.explosion_active = False  # Whether the bomb explosion effect is active
         self.explosion_end_time = 0
         self.explosion_particles = pg.sprite.Group()
+        self.portal_transition_timer = 0.0  # Delay before loading next level after portal
         self.muted = False  # Whether audio is muted
         self.mute_button_rect = pg.Rect(WIDTH - 120, 10, 110, 32)  # Mute button hit area
         # Intro slide variables
@@ -56,6 +57,10 @@ class Game:
         self.lose_sound.set_volume(0.7) # Set lose sound volume
         self.love_sound = pg.mixer.Sound(path.join(self.audio_dir, 'love.wav')) # Load love sound
         self.love_sound.set_volume(0.7) # Set love sound volume
+        self.small_boom_sound = pg.mixer.Sound(path.join(self.audio_dir, 'small_boom.wav')) # Load small bomb sound
+        self.small_boom_sound.set_volume(0.7) # Set bomb sound volume
+        self.blaze_sound = pg.mixer.Sound(path.join(self.audio_dir, 'blaze.wav')) # Load dash sound
+        self.blaze_sound.set_volume(0.7) # Set dash sound volume
         self.sound_volumes = {
             self.theme_sound: 0.5, # This is to store the original volumes
             self.game_over_sound: 0.7, # This is to store the original volumes
@@ -63,6 +68,8 @@ class Game:
             self.victory_sound: 0.7, # This is to store the original volumes
             self.lose_sound: 0.7, # This is to store the original volumes
             self.love_sound: 0.7, # This is to store the original volumes
+            self.small_boom_sound: 0.7, # This is to store the original volumes
+            self.blaze_sound: 0.7, # This is to store the original volumes
         }
         self.set_mute(self.muted)
         if not self.muted:
@@ -73,7 +80,7 @@ class Game:
             return # Return to avoid processing other inputs on the same key press
 
         difficulties = ["EASY", "NORMAL", "HARD"]
-        speeds = {"EASY": 0.7, "NORMAL": 1.0, "HARD": 1.5}
+        speeds = {"EASY": 0.75, "NORMAL": 1.0, "HARD": 1.25}
         if event.key in (pg.K_LEFT, pg.K_RIGHT):
             current_index = difficulties.index(self.difficulty)
             direction = -1 if event.key == pg.K_LEFT else 1
@@ -102,7 +109,7 @@ class Game:
         y_offset = HEIGHT // 2 + 80 # This is the y offset for the difficulty and time selection 
         
         # Difficulty Logic Visuals
-        diff_color = GREEN if self.difficulty == "EASY" else (YELLOW if self.difficulty == "NORMAL" else RED)
+        diff_color = GREEN if self.difficulty == "EASY" else (YELLOW if self.difficulty == "NORMAL" else DARK_RED)
         self.draw_text_centered("SELECT DIFFICULTY", 18, WHITE, y_offset) # This is the text for the difficulty selection
         self.draw_text_centered(f" {self.difficulty} ", 30, diff_color, y_offset + 40) # This is the text for the selected difficulty with a color change based on the difficulty
         self.draw_text_centered("USE LEFT/RIGHT TO CHANGE DIFFICULTY", 14, DARK_GRAY, y_offset + 80)
@@ -176,7 +183,7 @@ class Game:
             self.screen.blit(surf, rect)
         
         # Draw next button
-        pg.draw.rect(self.screen, GREEN, self.next_button_rect, border_radius=8)
+        pg.draw.rect(self.screen, DARK_GREEN, self.next_button_rect, border_radius=8)
         font = pg.font.SysFont('Copperplate Gothic', 20, bold=True)
         surf = font.render(">", True, WHITE) # This is the text for the next button
         rect = surf.get_rect(center=self.next_button_rect.center)
@@ -193,7 +200,8 @@ class Game:
         self.bombs = pg.sprite.Group() # Group to hold bomb sprites for map 1
         self.portals = pg.sprite.Group() # Group to hold portal sprites for level exit
         self.teleporters = pg.sprite.Group() # Group to hold blue teleport portals
-        self.collision_timer = 0  # Reset collision timer
+        self.life_loss_timer = 0.0  # Reset life loss timer
+        self.portal_transition_timer = 0.0  # Reset portal transition timer
         self.screen_shake = 1500  # Screen shake duration in milliseconds when player enters
         # Added a background image for the levls for a better design
         level_images = ['background.png', 'bg_2.png', 'bg_3.png']  # One image for each level
@@ -291,10 +299,10 @@ class Game:
                 return
         
         # Love sound timer
-        self.love_timer += self.dt
+        self.love_timer += self.dt # Increase Love timer by the change in time
         if self.love_timer >= 30.0:
-            self.love_sound.play()
-            self.love_timer = 0.0
+            self.love_sound.play() # Play the sound every 30 seconds or so
+            self.love_timer = 0.0 # Reset Love timer
         
         # Collisions
         if pg.sprite.spritecollide(self.player, self.cores, True): # Collect core and remove it from the game
@@ -302,9 +310,10 @@ class Game:
 
         if self.level_index == 0 and pg.sprite.spritecollide(self.player, self.bombs, False) and self.collision_timer <= 0:
             self.trigger_bomb_explosion()
+            self.small_boom_sound.play()
             self.lose_sound.play()
-            self.lives -= 1
-            self.collision_timer = 2000
+            self.lives -= 1 # This decreases the life 
+            self.collision_timer = 500
             self.life_loss_timer = 1.8
             if self.lives <= 0:
                 self.state = 'game_over'
@@ -313,15 +322,12 @@ class Game:
                 self.game_over_sound.play()
                 self.all_sprites = pg.sprite.Group()
                 return
-            else:
-                self.load_level()
-                self.camera.update(self.player)
-                return
+            # Level will reload after collision_timer expires
 
         if pg.sprite.spritecollide(self.player, self.enemies, False) and self.collision_timer <= 0: # If player hits an enemy and not in collision 
             self.lose_sound.play() # Play the lose life sound effect
             self.lives -= 1
-            self.collision_timer = 2000
+            self.collision_timer = 500
             self.life_loss_timer = 1.8 # This starts the loss life animation
             if self.lives <= 0:
                 self.state = 'game_over' # Set the game start over
@@ -330,18 +336,16 @@ class Game:
                 self.game_over_sound.play()  # Play the game over sound
                 self.all_sprites = pg.sprite.Group()  # Clear sprites for game over animation
                 return
-            else:
-                self.load_level()  # Restart the current level with remaining time
-                self.camera.update(self.player)  # Update camera to follow new player position
-                return
+            # Level will reload after collision_timer expires
 
         if len(self.cores) == 0: 
             # Change portal color to show it's active
             self.exit_node.image.fill(MAGENTA)
             
         # Check if player reaches the portal
-        if pg.sprite.spritecollide(self.player, self.portals, False):
-            if len(self.cores) == 0:  # Only allow passage if all cores collected
+        if self.portal_transition_timer > 0:
+            self.portal_transition_timer = max(0, self.portal_transition_timer - self.dt)
+            if self.portal_transition_timer == 0:
                 self.level_index += 1
                 if self.level_index < len(MAPS):
                     self.load_level()
@@ -349,8 +353,11 @@ class Game:
                 else:
                     # Victory! All levels completed
                     self.state = 'victory'
-                    self.theme_sound.stop()  # Stop the background music
+                    self.theme_sound.stop()
                     self.victory_sound.play()  # Play the victory rap sound
+        elif pg.sprite.spritecollide(self.player, self.portals, False):
+            if len(self.cores) == 0:  # Only allow passage if all cores collected
+                self.portal_transition_timer = 1.0
 
     def draw(self):
         # Used AI to help with the screen shake effect: I used Gemini to come up with the code
@@ -379,9 +386,9 @@ class Game:
         # User Interface
         self.draw_text(f"LEVEL {self.level_index + 1}", 20, WHITE, 10 + shake_offset[0], 10 + shake_offset[1]) # Level indicator
         self.draw_text(f"CORES: {len(self.cores)}", 20, WHITE, 10 + shake_offset[0], 35 + shake_offset[1]) # Cores remaining
+        self.draw_text(f"LIVES: {' '.join(['X'] * self.lives)}", 20, WHITE, 10 + shake_offset[0], 60 + shake_offset[1]) # Lives remaining below cores
         self.draw_text(f"TIME: {self.time_left:.1f}s", 20, WHITE, WIDTH // 4 - 70 + shake_offset[0], 10 + shake_offset[1]) # Timer indicator
         self.draw_text(f"MODE: {self.difficulty}", 20, WHITE, WIDTH - 150 + shake_offset[0], 35 + shake_offset[1]) # Difficulty indicator
-        self.draw_text(f"LIVES: {' '.join(['X'] * self.lives)}", 20, RED, WIDTH - 220 + shake_offset[0], HEIGHT - 35 + shake_offset[1])
 
         if self.life_loss_timer > 0:
             self.draw_life_loss_animation(shake_offset)
@@ -516,7 +523,7 @@ class Game:
         self.screen.blit(surf, (x, y)) # Draw text at a specific position
 
     def draw_mute_button(self):
-        button_color = RED if self.muted else GREEN
+        button_color = RED if self.muted else DARK_GREEN
         pg.draw.rect(self.screen, button_color, self.mute_button_rect, border_radius=8)
         label = "UNMUTE" if self.muted else "MUTE"
         font = pg.font.SysFont('Copperplate Gothic', 16, bold=True)
@@ -536,7 +543,7 @@ class Game:
 
     def draw_life_loss_animation(self, shake_offset=(0, 0)):
         alpha = int(255 * (self.life_loss_timer / 1.8))
-        message = "1 LIFE GONE"
+        message = "1 LIFE LOST"
         font = pg.font.SysFont('Copperplate Gothic', 24, bold=True) # This create a font for the text
         surf = font.render(message, True, YELLOW)
         surf.set_alpha(alpha)
@@ -605,6 +612,15 @@ class Game:
                     elif self.state == 'playing':
                         if event.key == pg.K_p:  # Toggle pause on 'P' key press
                             self.paused = not self.paused
+                        elif event.key == pg.K_q:  # Quit to home screen
+                            self.state = 'rules_settings'
+                            self.level_index = 0
+                            self.lives = 3
+                            self.time_left = 120.0
+                            self.game_over_reason = None
+                            self.paused = False
+                            if self.theme_sound.get_num_channels() == 0:
+                                self.theme_sound.play(-1)
                     elif self.state == 'game_over':
                         if event.key == pg.K_r:
                             self.state = 'rules_settings'
@@ -616,6 +632,17 @@ class Game:
                             self.game_over_reason = None
                             if hasattr(self, 'game_over_started'): # This is to reset the particles 
                                 delattr(self, 'game_over_started') # This is made to allow particles ot be created again.
+                        elif event.key == pg.K_q:
+                            self.state = 'rules_settings'
+                            self.level_index = 0
+                            self.lives = 3
+                            self.time_left = 120.0
+                            self.game_over_reason = None
+                            self.game_over_sound.stop()
+                            if self.theme_sound.get_num_channels() == 0:
+                                self.theme_sound.play(-1)
+                            if hasattr(self, 'game_over_started'):
+                                delattr(self, 'game_over_started')
                     elif self.state == 'victory':
                         if event.key == pg.K_r:
                             self.state = 'rules_settings'
@@ -624,6 +651,19 @@ class Game:
                             self.victory_sound.stop()  # Stop the victory rap sound
                             if hasattr(self, 'victory_start_time'): # This is to reset the victory particles
                                 delattr(self, 'victory_start_time') # This is made to allow particles to be created again.
+                            if hasattr(self, 'last_wave_time'):
+                                delattr(self, 'last_wave_time')
+                        elif event.key == pg.K_q:
+                            self.state = 'rules_settings'
+                            self.level_index = 0
+                            self.lives = 3
+                            self.time_left = 120.0
+                            self.game_over_reason = None
+                            self.victory_sound.stop()
+                            if self.theme_sound.get_num_channels() == 0:
+                                self.theme_sound.play(-1)
+                            if hasattr(self, 'victory_start_time'):
+                                delattr(self, 'victory_start_time')
                             if hasattr(self, 'last_wave_time'):
                                 delattr(self, 'last_wave_time')
             if self.state == 'intro': # Show intro screen
